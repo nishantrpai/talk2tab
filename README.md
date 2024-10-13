@@ -2,22 +2,14 @@
 
 ## Setup Instructions
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/your-username/xlinks.git
-   cd xlinks
-   ```
+1. Download the extension:
+   - Download the `build` folder from the repository
 
-2. Install dependencies:
-   ```
-   npm install
-   ```
-
-3. Load the extension in Chrome:
+2. Load the extension in Chrome:
    - Open Chrome and navigate to `chrome://extensions/`
    - Enable "Developer mode" in the top right corner
-   - Click "Load unpacked" and select the `build` folder in the xlinks directory
+   - Click "Load unpacked" and select the downloaded `build` folder
 
-4. The extension should now be active. Visit Twitter to see spaced links automatically converted to clickable links.
+3. The extension should now be active. Visit Twitter to see spaced links automatically converted to clickable links.
 
 Note: Make sure to reload the extension and refresh the Twitter page after making any changes to the code.
