@@ -16,12 +16,6 @@ console.log("Content script loaded for xlinks");
 let windowurl = window.location.href;
 let isProcessing = false;
 
-const validateLink = (url) => {
-  // Check if it's a valid domain
-  const validDomainRegex = /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/.+)?$/;
-  return validDomainRegex.test(url);
-};
-
 const replaceSpacedLinks = (text) => {
   console.log("Replacing spaced links");
   const domainRegex = /(?<!\S)([a-zA-Z0-9-]+(?:\s*\.\s*[a-zA-Z0-9-]+)+(?:\s*\/\s*[a-zA-Z0-9-]+)*)\b(?!\S)/g;
@@ -35,12 +29,6 @@ const replaceSpacedLinks = (text) => {
       return match;
     }
     const url = match.replace(/\s+/g, '');
-    
-    // Validate the link before replacing
-    if (!validateLink(url)) {
-      // If it's not a valid link, return the original match
-      return match;
-    }
     
     console.log("Replaced link:", match, "with:", url);
     return `<a href="https://${url}" style="color: #1DA1F2; text-decoration: inherit;" target="_blank" rel="noopener noreferrer">${url}</a>`;
