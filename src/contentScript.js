@@ -18,7 +18,7 @@ let isProcessing = false;
 
 const replaceSpacedLinks = (text) => {
   console.log("Replacing spaced links");
-  const domainRegex = /(?<!\S)([a-zA-Z0-9-]+(?:\s*\.\s*[a-zA-Z0-9-]+)+(?:\s*\/\s*[a-zA-Z0-9-]+)*)\b(?!\S)/g;
+  const domainRegex = /(?<!\S)([a-zA-Z0-9-]+(?:\s*\.\s*[a-zA-Z0-9-]+)+(?:\s*\/\s*[a-zA-Z0-9-]+)*)\b/g;
   return text.replace(domainRegex, (match, p1, offset, string) => {
     // Check if the match is already part of a link
     const beforeMatch = string.substring(0, offset);
@@ -29,7 +29,6 @@ const replaceSpacedLinks = (text) => {
       return match;
     }
     const url = match.replace(/\s+/g, '');
-    
     console.log("Replaced link:", match, "with:", url);
     return `<a href="https://${url}" style="color: #1DA1F2; text-decoration: inherit;" target="_blank" rel="noopener noreferrer">${url}</a>`;
   });
