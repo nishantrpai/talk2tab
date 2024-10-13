@@ -35,7 +35,7 @@ const replaceSpacedLinks = (text) => {
     }
     const url = match.replace(/\s+/g, '');
     console.log("Replaced link:", match, "with:", url);
-    return `<a href="https://${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    return `<a href="https://${url}" style="color: #1DA1F2; text-decoration: inherit;" target="_blank" rel="noopener noreferrer">${url}</a>`;
   });
 };
 
