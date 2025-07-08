@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Agent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+        }
+
+        .header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #262626;
+            background: #111111;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f5f5f5;
+        }
+
+        .settings-btn {
+            background: none;
+            border: none;
+            color: #a3a3a3;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .settings-btn:hover {
+            background: #262626;
+            color: #e5e5e5;
+        }
+
+        .context-section {
+            padding: 16px;
+            border-bottom: 1px solid #262626;
+        }
+
+        .context-section.collapsed .context-list {
+            display: none;
+        }
+
+        .context-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .context-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .collapse-btn {
+            background: none;
+            border: none;
+            color: #a3a3a3;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            transform: rotate(0deg);
+        }
+
+        .collapse-btn:hover {
+            background: #262626;
+            color: #e5e5e5;
+        }
+
+        .context-section.collapsed .collapse-btn {
+            transform: rotate(-90deg);
+        }
+
+        .context-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: #d4d4d4;
+        }
+
+        .context-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 4px 8px;
+            background: #262626;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            color: #e5e5e5;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #404040;
+            border-color: #525252;
+        }
+
+        .btn.primary {
+            background: #2563eb;
+            border-color: #3b82f6;
+        }
+
+        .btn.primary:hover {
+            background: #1d4ed8;
+            border-color: #2563eb;
+        }
+
+        .context-list {
+            max-height: 120px;
+            overflow-y: auto;
+            background: #171717;
+            border-radius: 4px;
+            border: 1px solid #262626;
+        }
+
+        .context-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #262626;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .context-item:last-child {
+            border-bottom: none;
+        }
+
+        .context-item-title {
+            font-weight: 500;
+            color: #f5f5f5;
+            margin-bottom: 2px;
+        }
+
+        .context-item-url {
+            color: #737373;
+            font-size: 10px;
+        }
+
+        .remove-btn {
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+
+        .remove-btn:hover {
+            background: #262626;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 90%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .message.user {
+            background: #2563eb;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .message.assistant {
+            background: #262626;
+            color: #e5e5e5;
+            align-self: flex-start;
+        }
+
+        .chat-input-container {
+            padding: 16px;
+            border-top: 1px solid #262626;
+            background: #111111;
+        }
+
+        .format-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .format-btn {
+            padding: 4px 8px;
+            background: #171717;
+            border: 1px solid #262626;
+            border-radius: 4px;
+            color: #a3a3a3;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .format-btn.active {
+            background: #2563eb;
+            border-color: #3b82f6;
+            color: white;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: #171717;
+            border: 1px solid #262626;
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: #e5e5e5;
+            font-size: 12px;
+            resize: vertical;
+            min-height: 36px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: #404040;
+        }
+
+        .send-btn {
+            padding: 8px 12px;
+            background: #2563eb;
+            border: 1px solid #3b82f6;
+            border-radius: 4px;
+            color: white;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            background: #1d4ed8;
+            border-color: #2563eb;
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #737373;
+            font-size: 11px;
+            padding: 8px 12px;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #262626;
+            border-top: 2px solid #737373;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #737373;
+            font-size: 11px;
+            padding: 32px 16px;
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #171717;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #404040;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #525252;
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #171717;
+            border: 1px solid #262626;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid #262626;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #f5f5f5;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #a3a3a3;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #262626;
+            color: #e5e5e5;
+        }
+
+        .modal-content {
+            padding: 16px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .setting-group {
+            margin-bottom: 16px;
+        }
+
+        .setting-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: #d4d4d4;
+            margin-bottom: 4px;
+        }
+
+        .setting-input {
+            width: 100%;
+            background: #0a0a0a;
+            border: 1px solid #262626;
+            border-radius: 4px;
+            padding: 8px;
+            color: #e5e5e5;
+            font-size: 12px;
+            font-family: inherit;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: #404040;
+        }
+
+        .setting-textarea {
+            min-height: 60px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .setting-help {
+            display: block;
+            font-size: 10px;
+            color: #737373;
+            margin-top: 4px;
+        }
+
+        .modal-footer {
+            padding: 16px;
+            border-top: 1px solid #262626;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #262626;
+            background: #111111;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #a3a3a3;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn:hover {
+            color: #e5e5e5;
+            background: #171717;
+        }
+
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            background: #0a0a0a;
+        }
+
+        /* Context Window (Copilot-style) */
+        .context-window {
+            background: #171717;
+            border: 1px solid #262626;
+            border-radius: 6px;
+            margin: 12px 16px;
+            overflow: hidden;
+        }
+
+        .context-window.collapsed .context-window-content {
+            display: none;
+        }
+
+        .context-window-header {
+            padding: 8px 12px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #262626;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .context-window-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #d4d4d4;
+            font-weight: 500;
+        }
+
+        .context-icon {
+            font-size: 12px;
+        }
+
+        .context-count {
+            background: #404040;
+            color: #e5e5e5;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: normal;
+        }
+
+        .context-window-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .context-action-btn {
+            background: none;
+            border: none;
+            color: #737373;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .context-action-btn:hover {
+            background: #262626;
+            color: #e5e5e5;
+        }
+
+        .context-collapse-btn {
+            background: none;
+            border: none;
+            color: #737373;
+            font-size: 10px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 3px;
+            transition: all 0.2s;
+            transform: rotate(0deg);
+        }
+
+        .context-collapse-btn:hover {
+            background: #262626;
+            color: #e5e5e5;
+        }
+
+        .context-window.collapsed .context-collapse-btn {
+            transform: rotate(-90deg);
+        }
+
+        .context-window-content {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .context-tabs {
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .context-tab {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            background: #0a0a0a;
+            border: 1px solid #262626;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .context-tab:hover {
+            background: #1a1a1a;
+            border-color: #404040;
+        }
+
+        .context-tab-favicon {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            flex-shrink: 0;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23737373"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" /></svg>') no-repeat center;
+            background-size: contain;
+        }
+
+        .context-tab-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .context-tab-title {
+            font-size: 11px;
+            font-weight: 500;
+            color: #e5e5e5;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+
+        .context-tab-url {
+            font-size: 10px;
+            color: #737373;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .context-tab-close {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: none;
+            border: none;
+            color: #737373;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 2px;
+            opacity: 0;
+            transition: all 0.2s;
+        }
+
+        .context-tab:hover .context-tab-close {
+            opacity: 1;
+        }
+
+        .context-tab-close:hover {
+            background: #404040;
+            color: #e5e5e5;
+        }
+
+        .context-empty {
+            padding: 16px;
+            text-align: center;
+            color: #737373;
+            font-size: 11px;
+        }
+
+        /* Journal Styles */
+        .journal-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .journal-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #262626;
+            background: #111111;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .journal-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f5f5f5;
+        }
+
+        .journal-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .journal-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .journal-message {
+            max-width: 85%;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.4;
+            position: relative;
+            align-self: flex-end;
+            background: #2563eb;
+            color: white;
+        }
+
+        .journal-message.quote {
+            background: #262626;
+            color: #e5e5e5;
+            border-left: 3px solid #2563eb;
+            border-radius: 6px;
+            font-style: italic;
+            align-self: flex-start;
+            max-width: 90%;
+        }
+
+        .journal-message-content {
+            margin-bottom: 4px;
+        }
+
+        .journal-message-time {
+            font-size: 10px;
+            opacity: 0.7;
+            text-align: right;
+        }
+
+        .journal-message.quote .journal-message-time {
+            text-align: left;
+        }
+
+        .journal-quote-source {
+            font-size: 10px;
+            color: #737373;
+            margin-top: 6px;
+            font-style: normal;
+            border-top: 1px solid #404040;
+            padding-top: 4px;
+        }
+
+        .journal-quote-source a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        .journal-quote-source a:hover {
+            text-decoration: underline;
+        }
+
+        .journal-input-container {
+            padding: 16px;
+            border-top: 1px solid #262626;
+            background: #111111;
+        }
+
+        .journal-input-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .journal-input {
+            flex: 1;
+            background: #171717;
+            border: 1px solid #262626;
+            border-radius: 18px;
+            padding: 8px 16px;
+            color: #e5e5e5;
+            font-size: 12px;
+            resize: none;
+            min-height: 36px;
+            max-height: 100px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .journal-input:focus {
+            border-color: #404040;
+        }
+
+        .journal-input::placeholder {
+            color: #737373;
+        }
+
+        .journal-send-btn {
+            width: 36px;
+            height: 36px;
+            background: #2563eb;
+            border: none;
+            border-radius: 18px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .journal-send-btn:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
+
+        .journal-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .journal-empty {
+            text-align: center;
+            color: #737373;
+            font-size: 11px;
+            padding: 32px 16px;
+            font-style: italic;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        .small-btn {
+            padding: 6px 12px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>LLM Agent</h1>
+        <button class="btn settings-btn" id="settingsBtn">⚙️</button>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="chat">Chat</button>
+        <button class="tab-btn" data-tab="journal">Journal</button>
+    </div>
+
+    <!-- Chat Tab -->
+    <div class="tab-content active" id="chatTab">
+        <div class="chat-container">
+            <!-- Context Window (Copilot-style) -->
+            <div class="context-window" id="contextWindow">
+                <div class="context-window-header">
+                    <div class="context-window-title">
+                        <span class="context-icon">📄</span>
+                        <span>Context</span>
+                        <span class="context-count" id="contextCount">1</span>
+                    </div>
+                    <div class="context-window-actions">
+                        <button class="btn context-action-btn" id="addContextBtn" title="Add context">+</button>
+                        <button class="btn context-action-btn" id="clearContextBtn" title="Clear all">🗑️</button>
+                        <button class="btn context-collapse-btn" id="contextCollapseBtn" title="Toggle context">▼</button>
+                    </div>
+                </div>
+                <div class="context-window-content" id="contextWindowContent">
+                    <div class="context-tabs" id="contextTabs">
+                        <!-- Context tabs will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="empty-state">
+                    Current tab is automatically included. Ask questions about this page or add more context.
+                </div>
+            </div>
+            
+            <div class="chat-input-container">
+                <div class="format-selector">
+                    <button class="format-btn active" data-format="text">Text</button>
+                    <button class="format-btn" data-format="json">JSON</button>
+                    <button class="format-btn" data-format="table">Table</button>
+                </div>
+                <div class="input-wrapper">
+                    <textarea class="chat-input" id="chatInput" placeholder="Ask a question about your tabs and pages..."></textarea>
+                    <button class="send-btn" id="sendBtn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Journal Tab -->
+    <div class="tab-content" id="journalTab">
+        <div class="journal-container">
+            <div class="journal-header">
+                <div class="journal-title">Journal</div>
+                <div class="journal-actions">
+                    <button class="btn small-btn" id="clearJournal">�️ Clear</button>
+                </div>
+            </div>
+            <div class="journal-messages" id="journalMessages">
+                <!-- Journal messages will be dynamically added here -->
+            </div>
+            <div class="journal-input-container">
+                <div class="journal-input-wrapper">
+                    <input type="text" class="journal-input" id="journalInput" placeholder="Type your journal message...">
+                    <button class="journal-send-btn" id="journalSendBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2l-11 9-7-7z"/>
+                            <path d="M22 2l-11 9v11l3-3 3 3V11z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="modal-close" id="closeSettings">×</button>
+            </div>
+            <div class="modal-content">
+                <div class="setting-group">
+                    <label for="responseStyle">Response Style Instructions</label>
+                    <textarea id="responseStyle" class="setting-input setting-textarea" 
+                              placeholder="Describe how you want the AI to respond. E.g.: Be concise and direct. Use bullet points. Focus on key insights only.">Be concise and direct. Avoid unnecessary elaboration.</textarea>
+                    <small class="setting-help">Customize exactly how you want the AI to respond to your questions</small>
+                </div>
+                
+                <div class="setting-group">
+                    <label for="apiEndpoint">API Endpoint</label>
+                    <input type="text" id="apiEndpoint" class="setting-input" 
+                           value="http://localhost:1234/v1/chat/completions" 
+                           placeholder="LM Studio API endpoint">
+                    <small class="setting-help">Change this to use different LLM providers</small>
+                </div>
+                
+                <div class="setting-group">
+                    <label for="maxTokens">Max Response Length</label>
+                    <input type="number" id="maxTokens" class="setting-input" 
+                           value="1000" min="100" max="4000" step="100">
+                    <small class="setting-help">Maximum tokens for LLM response</small>
+                </div>
+                
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="renderMarkdown" checked>
+                        Render markdown formatting
+                    </label>
+                    <small class="setting-help">Uncheck to show raw text without markdown</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="resetSettings">Reset to Defaults</button>
+                <button class="btn primary" id="saveSettings">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="sidebar.js"></script>
+</body>
+</html>

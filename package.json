@@ -1,7 +1,7 @@
 {
-  "name": "thread2audio",
+  "name": "llm-agent-extension",
   "version": "0.1.0",
-  "description": "My Chrome Extension",
+  "description": "AI assistant Chrome extension that uses browser tabs and visited pages as context",
   "private": true,
   "scripts": {
     "watch": "webpack --mode=development --watch --config config/webpack.config.js",
