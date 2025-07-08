@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM Agent</title>
+    <script src="feather.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -764,6 +765,99 @@
             text-decoration: underline;
         }
 
+        .journal-message-menu {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #737373;
+            opacity: 0;
+            transition: opacity 0.2s, background-color 0.2s;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .journal-message:hover .journal-message-menu {
+            opacity: 1;
+        }
+
+        .journal-message-menu:hover {
+            background: rgba(0, 0, 0, 0.7);
+            color: #e5e5e5;
+        }
+
+        .journal-message-dropdown {
+            position: fixed;
+            background: #171717;
+            border: 1px solid #262626;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            min-width: 140px;
+            animation: fadeIn 0.1s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-2px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .journal-message-dropdown button {
+            width: 100%;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: #e5e5e5;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .journal-message-dropdown button:hover {
+            background: #262626;
+        }
+
+        .journal-message-dropdown button.danger {
+            color: #ef4444;
+        }
+
+        .journal-message-dropdown button.danger:hover {
+            background: #262626;
+        }
+
+        .journal-menu-btn {
+            width: 100%;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: #e5e5e5;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+
+        .journal-menu-btn:hover {
+            background: #262626;
+        }
+
+        .journal-menu-btn.danger {
+            color: #ef4444;
+        }
+
+        .journal-menu-btn.danger:hover {
+            background: #262626;
+        }
+
         .journal-input-container {
             padding: 16px;
             border-top: 1px solid #262626;
@@ -846,12 +940,21 @@
             background: #262626;
             z-index: 1;
         }
+
+        .journal-empty {
+            text-align: center;
+            color: #737373;
+            font-size: 11px;
+            padding: 32px 16px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>LLM Agent</h1>
-        <button class="btn settings-btn" id="settingsBtn">⚙️</button>
+        <button class="btn settings-btn" id="settingsBtn">
+            <i data-feather="settings"></i>
+        </button>
     </div>
 
     <!-- Tab Navigation -->
@@ -865,17 +968,22 @@
         <div class="chat-container">
             <!-- Context Window (Copilot-style) -->
             <div class="context-window" id="contextWindow">
-                <div class="context-window-header">
-                    <div class="context-window-title">
-                        <span class="context-icon">📄</span>
-                        <span>Context</span>
-                        <span class="context-count" id="contextCount">1</span>
-                    </div>
-                    <div class="context-window-actions">
-                        <button class="btn context-action-btn" id="addContextBtn" title="Add context">+</button>
-                        <button class="btn context-action-btn" id="clearContextBtn" title="Clear all">🗑️</button>
-                        <button class="btn context-collapse-btn" id="contextCollapseBtn" title="Toggle context">▼</button>
-                    </div>
+                <div class="context-window-header">                <div class="context-window-title">
+                    <i data-feather="file-text"></i>
+                    <span>Context</span>
+                    <span class="context-count" id="contextCount">1</span>
+                </div>
+                <div class="context-window-actions">
+                    <button class="btn context-action-btn" id="addContextBtn" title="Add context">
+                        <i data-feather="plus"></i>
+                    </button>
+                    <button class="btn context-action-btn" id="clearContextBtn" title="Clear all">
+                        <i data-feather="trash-2"></i>
+                    </button>
+                    <button class="btn context-collapse-btn" id="contextCollapseBtn" title="Toggle context">
+                        <i data-feather="chevron-down"></i>
+                    </button>
+                </div>
                 </div>
                 <div class="context-window-content" id="contextWindowContent">
                     <div class="context-tabs" id="contextTabs">
@@ -910,7 +1018,10 @@
             <div class="journal-header">
                 <div class="journal-title">Journal</div>
                 <div class="journal-actions">
-                    <button class="btn small-btn" id="clearJournal">�️ Clear</button>
+                    <button class="btn small-btn" id="clearJournal">
+                        <i data-feather="trash-2"></i>
+                        Clear
+                    </button>
                 </div>
             </div>
             <div class="journal-messages" id="journalMessages">
@@ -918,12 +1029,9 @@
             </div>
             <div class="journal-input-container">
                 <div class="journal-input-wrapper">
-                    <input type="text" class="journal-input" id="journalInput" placeholder="Type your journal message...">
+                    <textarea class="journal-input" id="journalInput" placeholder="Type your journal message..."></textarea>
                     <button class="journal-send-btn" id="journalSendBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 2l-11 9-7-7z"/>
-                            <path d="M22 2l-11 9v11l3-3 3 3V11z"/>
-                        </svg>
+                        <i data-feather="send"></i>
                     </button>
                 </div>
             </div>
@@ -976,5 +1084,9 @@
     </div>
 
     <script src="sidebar.js"></script>
+    <script>
+        // Initialize Feather icons
+        feather.replace();
+    </script>
 </body>
 </html>

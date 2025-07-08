@@ -442,11 +442,17 @@ function renderJournalMessages() {
             <a href="${message.sourceUrl}" target="_blank">${message.sourceTitle || 'Source'}</a>
           </div>
           <div class="journal-message-time">${timestamp}</div>
+          <div class="journal-message-menu" onclick="showJournalMessageMenu(event, ${message.id})">
+            <i data-feather="more-horizontal"></i>
+          </div>
         `;
       } else {
         messageDiv.innerHTML = `
           <div class="journal-message-content">${message.content}</div>
           <div class="journal-message-time">${timestamp}</div>
+          <div class="journal-message-menu" onclick="showJournalMessageMenu(event, ${message.id})">
+            <i data-feather="more-horizontal"></i>
+          </div>
         `;
       }
       
@@ -456,6 +462,11 @@ function renderJournalMessages() {
   
   // Scroll to bottom
   container.scrollTop = container.scrollHeight;
+  
+  // Re-render Feather icons
+  if (window.feather) {
+    window.feather.replace();
+  }
 }
 
 // Add text to journal as quote
@@ -973,7 +984,121 @@ function saveMessageToNotepad(messageIndex) {
   }
 }
 
+// Show journal message menu
+function showJournalMessageMenu(event, messageId) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  // Remove any existing menus
+  const existingMenu = document.querySelector('.journal-message-dropdown');
+  if (existingMenu) {
+    existingMenu.remove();
+  }
+  
+  const menu = document.createElement('div');
+  menu.className = 'journal-message-dropdown';
+  
+  // Position menu near the click, but ensure it stays within viewport
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const menuWidth = 140;
+  const menuHeight = 80; // Approximate height
+  
+  let left = event.pageX;
+  let top = event.pageY;
+  
+  // Adjust position if menu would go off-screen
+  if (left + menuWidth > viewportWidth) {
+    left = event.pageX - menuWidth;
+  }
+  if (top + menuHeight > viewportHeight) {
+    top = event.pageY - menuHeight;
+  }
+  
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  
+  menu.innerHTML = `
+    <div style="padding: 4px;">
+      <button onclick="addJournalMessageToChat(${messageId}); closeJournalMessageMenu()" class="journal-menu-btn">
+        <i data-feather="message-circle" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+        Add to Chat
+      </button>
+      <button onclick="deleteJournalMessage(${messageId}); closeJournalMessageMenu()" class="journal-menu-btn danger">
+        <i data-feather="trash-2" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+        Delete
+      </button>
+    </div>
+  `;
+  
+  document.body.appendChild(menu);
+  
+  // Re-render Feather icons in the menu
+  if (window.feather) {
+    window.feather.replace();
+  }
+  
+  // Close menu when clicking outside
+  setTimeout(() => {
+    function closeMenu(e) {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    }
+    document.addEventListener('click', closeMenu);
+  }, 0);
+}
+
+function closeJournalMessageMenu() {
+  const menu = document.querySelector('.journal-message-dropdown');
+  if (menu) {
+    menu.remove();
+  }
+}
+
+// Close menu on escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeJournalMessageMenu();
+  }
+});
+
+// Add journal message to chat
+function addJournalMessageToChat(messageId) {
+  const message = journalMessages.find(msg => msg.id === messageId);
+  if (!message) return;
+  
+  // Add message to chat history
+  chatHistory.push({ 
+    role: 'user', 
+    content: message.content 
+  });
+  
+  // Switch to chat tab and update
+  switchTab('chat');
+  updateChatMessages();
+  
+  // Save chat history
+  chrome.runtime.sendMessage({
+    type: 'SAVE_CHAT_HISTORY',
+    history: chatHistory
+  });
+}
+
+// Delete journal message
+function deleteJournalMessage(messageId) {
+  if (confirm('Are you sure you want to delete this journal entry?')) {
+    journalMessages = journalMessages.filter(msg => msg.id !== messageId);
+    renderJournalMessages();
+    saveJournal();
+  }
+}
+
 // Global functions for inline event handlers
 window.removeContext = removeContext;
 window.openTab = openTab;
-window.addSelectedToJournal = addSelectedToJournal;
+window.showJournalMessageMenu = showJournalMessageMenu;
+window.closeJournalMessageMenu = closeJournalMessageMenu;
+window.addJournalMessageToChat = addJournalMessageToChat;
+window.deleteJournalMessage = deleteJournalMessage;
