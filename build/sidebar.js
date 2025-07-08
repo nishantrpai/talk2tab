@@ -529,7 +529,7 @@ function updateContextList() {
   contextCount.textContent = totalContexts.toString();
   
   if (contexts.length === 0) {
-    contextTabs.innerHTML = '<div class="context-empty">Current tab included automatically</div>';
+    contextTabs.innerHTML = '<div class="context-empty">Context updates automatically when you switch tabs</div>';
     return;
   }
 
@@ -628,6 +628,7 @@ async function sendMessage() {
 
     // Prepare context for LLM - always include current tab first
     let contextString = '';
+    let hasContext = false;
     
     // Add current tab context first (this is what user is referring to by default)
     if (activeTabContext) {
@@ -635,6 +636,7 @@ async function sendMessage() {
       contextString += `URL: ${activeTabContext.url}\n`;
       contextString += `Title: ${activeTabContext.title}\n`;
       contextString += `Content: ${activeTabContext.content.slice(0, 3000)}...\n\n`;
+      hasContext = true;
     }
 
     // Add other contexts if they exist
@@ -643,6 +645,30 @@ async function sendMessage() {
       contextString += contexts.map(ctx => 
         `URL: ${ctx.url}\nTitle: ${ctx.title}\nContent: ${ctx.content.slice(0, 2000)}...`
       ).join('\n\n---\n\n');
+      hasContext = true;
+    }
+
+    // Check if we have any context at all
+    if (!hasContext) {
+      // Add error message to chat indicating no context is available
+      chatHistory.push({ 
+        role: 'assistant', 
+        content: `I don't have any context from your current tab or other pages. This could happen if:
+
+1. The page is still loading
+2. The page doesn't allow content extraction (like some chrome:// pages)
+3. There was an error getting the page content
+
+Try:
+- Refreshing the page and asking again
+- Adding context manually using the + button
+- Navigating to a different webpage
+
+You can still ask general questions, but I won't have specific page context to reference.` 
+      });
+      updateChatMessages();
+      setLoading(false);
+      return;
     }
 
     // Prepare system message with format instructions and response style
@@ -716,7 +742,7 @@ Please provide helpful, accurate responses based on the context provided. Focus 
 // Update chat messages UI
 function updateChatMessages() {
   if (chatHistory.length === 0) {
-    chatMessages.innerHTML = '<div class="empty-state">Current tab is automatically included. Ask questions about this page or add more context.</div>';
+    chatMessages.innerHTML = '<div class="empty-state">Context automatically updates when you switch tabs. Ask questions about your current page or add more context using the + button.</div>';
     return;
   }
 
