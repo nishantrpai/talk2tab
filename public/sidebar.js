@@ -54,6 +54,23 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
 });
 
+// Check for pending journal entries when window becomes visible
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    checkPendingJournalEntries();
+  }
+});
+
+// Also check when window gets focus
+window.addEventListener('focus', () => {
+  checkPendingJournalEntries();
+});
+
+// Periodic check for pending journal entries (every 2 seconds)
+setInterval(() => {
+  checkPendingJournalEntries();
+}, 2000);
+
 // Load stored contexts and chat history
 function loadStoredData() {
   chrome.runtime.sendMessage({ type: 'GET_STORED_CONTEXTS' }, (response) => {
@@ -87,8 +104,11 @@ function loadStoredNotes() {
 
 // Check for pending journal entries from context menu
 function checkPendingJournalEntries() {
+  console.log('Checking for pending journal entries...');
   chrome.storage.local.get(['pendingJournalEntry'], (result) => {
+    console.log('Pending journal entry result:', result);
     if (result.pendingJournalEntry) {
+      console.log('Found pending journal entry, adding to journal');
       const entry = result.pendingJournalEntry;
       
       // Add to journal messages
@@ -109,7 +129,11 @@ function checkPendingJournalEntries() {
       switchTab('journal');
       
       // Clear the pending entry
-      chrome.storage.local.remove(['pendingJournalEntry']);
+      chrome.storage.local.remove(['pendingJournalEntry'], () => {
+        console.log('Cleared pending journal entry');
+      });
+    } else {
+      console.log('No pending journal entries found');
     }
   });
 }
