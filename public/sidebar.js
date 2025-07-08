@@ -723,31 +723,6 @@ function switchTab(tabName) {
   }
 }
 
-// Tab switching functionality
-function switchTab(tabName) {
-  currentTab = tabName;
-  
-  // Update tab buttons
-  tabButtons.forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.dataset.tab === tabName) {
-      btn.classList.add('active');
-    }
-  });
-  
-  // Update tab content
-  document.querySelectorAll('.tab-content').forEach(content => {
-    content.classList.remove('active');
-  });
-  
-  if (tabName === 'chat') {
-    chatTab.classList.add('active');
-  } else if (tabName === 'journal') {
-    journalTab.classList.add('active');
-    loadJournal();
-  }
-}
-
 // Notepad functionality
 function showAddNoteModal() {
   const modal = document.createElement('div');
