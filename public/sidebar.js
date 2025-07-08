@@ -210,6 +210,15 @@ function setupEventListeners() {
   });
   clearJournalBtn.addEventListener('click', clearJournal);
   
+  // Journal message menu event delegation
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.journal-message-menu')) {
+      const menu = e.target.closest('.journal-message-menu');
+      const messageId = parseInt(menu.getAttribute('data-message-id'));
+      showJournalMessageMenu(e, messageId);
+    }
+  });
+  
   // Close modal when clicking overlay
   settingsModal.addEventListener('click', (e) => {
     if (e.target === settingsModal) {
@@ -442,7 +451,7 @@ function renderJournalMessages() {
             <a href="${message.sourceUrl}" target="_blank">${message.sourceTitle || 'Source'}</a>
           </div>
           <div class="journal-message-time">${timestamp}</div>
-          <div class="journal-message-menu" onclick="showJournalMessageMenu(event, ${message.id})">
+          <div class="journal-message-menu" data-message-id="${message.id}">
             <i data-feather="more-horizontal"></i>
           </div>
         `;
@@ -450,7 +459,7 @@ function renderJournalMessages() {
         messageDiv.innerHTML = `
           <div class="journal-message-content">${message.content}</div>
           <div class="journal-message-time">${timestamp}</div>
-          <div class="journal-message-menu" onclick="showJournalMessageMenu(event, ${message.id})">
+          <div class="journal-message-menu" data-message-id="${message.id}">
             <i data-feather="more-horizontal"></i>
           </div>
         `;
@@ -998,33 +1007,48 @@ function showJournalMessageMenu(event, messageId) {
   const menu = document.createElement('div');
   menu.className = 'journal-message-dropdown';
   
-  // Position menu near the click, but ensure it stays within viewport
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
+  // Position menu relative to the clicked element and viewport
+  const clickedElement = event.target.closest('.journal-message-menu');
+  const rect = clickedElement.getBoundingClientRect();
+  const journalContainer = document.getElementById('journalMessages');
+  const containerRect = journalContainer.getBoundingClientRect();
+  
   const menuWidth = 140;
-  const menuHeight = 80; // Approximate height
+  const menuHeight = 80;
   
-  let left = event.pageX;
-  let top = event.pageY;
+  // Position relative to the button, but within the journal container
+  let left = rect.right + 8; // Position to the right of the button
+  let top = rect.top;
   
-  // Adjust position if menu would go off-screen
-  if (left + menuWidth > viewportWidth) {
-    left = event.pageX - menuWidth;
-  }
-  if (top + menuHeight > viewportHeight) {
-    top = event.pageY - menuHeight;
+  // Adjust if menu would go outside viewport or container
+  if (left + menuWidth > window.innerWidth) {
+    left = rect.left - menuWidth - 8; // Position to the left instead
   }
   
+  if (top + menuHeight > window.innerHeight) {
+    top = rect.bottom - menuHeight;
+  }
+  
+  // Ensure menu stays within the journal container bounds
+  if (left < containerRect.left) {
+    left = containerRect.left + 8;
+  }
+  if (top < containerRect.top) {
+    top = containerRect.top + 8;
+  }
+  
+  menu.style.position = 'fixed';
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
+  menu.style.zIndex = '1001'; // Higher than other elements
   
   menu.innerHTML = `
     <div style="padding: 4px;">
-      <button onclick="addJournalMessageToChat(${messageId}); closeJournalMessageMenu()" class="journal-menu-btn">
+      <button class="journal-menu-btn" data-action="add-to-chat" data-message-id="${messageId}">
         <i data-feather="message-circle" style="width: 14px; height: 14px; margin-right: 6px;"></i>
         Add to Chat
       </button>
-      <button onclick="deleteJournalMessage(${messageId}); closeJournalMessageMenu()" class="journal-menu-btn danger">
+      <button class="journal-menu-btn danger" data-action="delete" data-message-id="${messageId}">
         <i data-feather="trash-2" style="width: 14px; height: 14px; margin-right: 6px;"></i>
         Delete
       </button>
@@ -1038,15 +1062,38 @@ function showJournalMessageMenu(event, messageId) {
     window.feather.replace();
   }
   
-  // Close menu when clicking outside
+  // Add click handlers for menu buttons
+  menu.addEventListener('click', (e) => {
+    const button = e.target.closest('.journal-menu-btn');
+    if (button) {
+      const action = button.getAttribute('data-action');
+      const messageId = parseInt(button.getAttribute('data-message-id'));
+      
+      if (action === 'add-to-chat') {
+        addJournalMessageToChat(messageId);
+      } else if (action === 'delete') {
+        deleteJournalMessage(messageId);
+      }
+      
+      closeJournalMessageMenu();
+    }
+  });
+  
+  // Close menu when clicking outside or scrolling
   setTimeout(() => {
     function closeMenu(e) {
       if (!menu.contains(e.target)) {
         menu.remove();
         document.removeEventListener('click', closeMenu);
+        journalContainer.removeEventListener('scroll', closeMenu);
       }
     }
+    
+    // Close on click outside
     document.addEventListener('click', closeMenu);
+    
+    // Close on scroll within journal container
+    journalContainer.addEventListener('scroll', closeMenu);
   }, 0);
 }
 
