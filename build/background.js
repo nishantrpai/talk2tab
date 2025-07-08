@@ -38,6 +38,89 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Add to Journal',
     contexts: ['selection']
   });
+  
+  // Initialize current tab context
+  setTimeout(() => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].url && (tabs[0].url.startsWith('http://') || tabs[0].url.startsWith('https://'))) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' }, (response) => {
+          if (response && !chrome.runtime.lastError) {
+            pageContexts.set('current_tab', response);
+            console.log('Initialized current tab context:', response.url);
+          }
+        });
+      }
+    });
+  }, 1000);
+});
+
+// Handle tab activation (when user switches to a different tab)
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  console.log('Tab activated:', activeInfo.tabId);
+  
+  try {
+    // Get the activated tab information
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    
+    // Only process web pages (not chrome:// pages)
+    if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+      // Wait a moment for the page to be ready
+      setTimeout(() => {
+        // Send message to content script to get page content
+        chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' }, (response) => {
+          if (response && !chrome.runtime.lastError) {
+            // Update the current tab context
+            pageContexts.set('current_tab', response);
+            console.log('Auto-updated context for tab switch:', response.url);
+            
+            // Notify sidebar of context update
+            chrome.runtime.sendMessage({ 
+              type: 'CONTEXT_UPDATED', 
+              context: response 
+            }).catch(() => {
+              // Sidebar might not be open, that's ok
+            });
+          }
+        });
+      }, 500); // Small delay to ensure page is ready
+    }
+  } catch (error) {
+    console.error('Error handling tab activation:', error);
+  }
+});
+
+// Handle tab updates (when a tab's URL changes, like navigation)
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Only process when the tab is completely loaded and has a URL change
+  if (changeInfo.status === 'complete' && changeInfo.url && 
+      (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+    
+    console.log('Tab updated with new URL:', tab.url);
+    
+    // Check if this is the active tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
+      if (activeTabs[0] && activeTabs[0].id === tabId) {
+        // This is the active tab, update context
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
+            if (response && !chrome.runtime.lastError) {
+              // Update the current tab context
+              pageContexts.set('current_tab', response);
+              console.log('Auto-updated context for URL change:', response.url);
+              
+              // Notify sidebar of context update
+              chrome.runtime.sendMessage({ 
+                type: 'CONTEXT_UPDATED', 
+                context: response 
+              }).catch(() => {
+                // Sidebar might not be open, that's ok
+              });
+            }
+          });
+        }, 1000); // Longer delay for navigation
+      }
+    });
+  }
 });
 
 // Handle context menu clicks

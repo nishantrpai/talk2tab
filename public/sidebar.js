@@ -54,6 +54,23 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
 });
 
+// Listen for context updates from background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'CONTEXT_UPDATED') {
+    console.log('Received context update from background:', message.context);
+    
+    // Update the current tab context
+    contexts = contexts.filter(ctx => ctx.url !== message.context.url); // Remove existing
+    contexts.unshift(message.context); // Add to beginning
+    
+    // Update UI
+    updateContextList();
+    
+    // Send response
+    sendResponse({ received: true });
+  }
+});
+
 // Check for pending journal entries when window becomes visible
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
@@ -593,15 +610,31 @@ async function sendMessage() {
       });
     });
 
+    // If we didn't get current tab content from the message handler, try direct approach
+    let activeTabContext = currentTabContent;
+    if (!activeTabContext) {
+      activeTabContext = await new Promise((resolve) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' }, (response) => {
+              resolve(response);
+            });
+          } else {
+            resolve(null);
+          }
+        });
+      });
+    }
+
     // Prepare context for LLM - always include current tab first
     let contextString = '';
     
     // Add current tab context first (this is what user is referring to by default)
-    if (currentTabContent) {
+    if (activeTabContext) {
       contextString += `CURRENT TAB (what user is referring to by default):\n`;
-      contextString += `URL: ${currentTabContent.url}\n`;
-      contextString += `Title: ${currentTabContent.title}\n`;
-      contextString += `Content: ${currentTabContent.content.slice(0, 3000)}...\n\n`;
+      contextString += `URL: ${activeTabContext.url}\n`;
+      contextString += `Title: ${activeTabContext.title}\n`;
+      contextString += `Content: ${activeTabContext.content.slice(0, 3000)}...\n\n`;
     }
 
     // Add other contexts if they exist
