@@ -32,6 +32,12 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Add Selection to LLM Context',
     contexts: ['selection']
   });
+  
+  chrome.contextMenus.create({
+    id: 'add-selection-to-journal',
+    title: 'Add to Journal',
+    contexts: ['selection']
+  });
 });
 
 // Handle context menu clicks
@@ -69,6 +75,34 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         };
         pageContexts.set(`selection_${Date.now()}`, selectionContext);
         console.log('Added selection to context:', info.selectionText.substring(0, 50) + '...');
+      }
+      break;
+      
+    case 'add-selection-to-journal':
+      // Add selected text to journal
+      if (info.selectionText) {
+        // Store the selection data temporarily so sidebar can pick it up
+        const journalEntry = {
+          type: 'quote',
+          content: info.selectionText,
+          sourceUrl: tab.url,
+          sourceTitle: tab.title,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Store temporarily for sidebar to pick up
+        chrome.storage.local.set({ 
+          pendingJournalEntry: journalEntry 
+        }, () => {
+          console.log('Stored pending journal entry for sidebar pickup');
+        });
+        
+        // Open side panel to show the journal
+        chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {
+          chrome.sidePanel.open({ tabId: tab.id }).catch((error) => {
+            console.error('Failed to open side panel:', error);
+          });
+        });
       }
       break;
   }

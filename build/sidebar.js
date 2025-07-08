@@ -72,6 +72,7 @@ function loadStoredData() {
   
   loadStoredNotes();
   loadJournal();
+  checkPendingJournalEntries();
 }
 
 // Load stored notes
@@ -80,6 +81,35 @@ function loadStoredNotes() {
     if (result.notes) {
       notes = result.notes;
       updateNotesList();
+    }
+  });
+}
+
+// Check for pending journal entries from context menu
+function checkPendingJournalEntries() {
+  chrome.storage.local.get(['pendingJournalEntry'], (result) => {
+    if (result.pendingJournalEntry) {
+      const entry = result.pendingJournalEntry;
+      
+      // Add to journal messages
+      const message = {
+        id: Date.now(),
+        type: entry.type,
+        content: entry.content,
+        sourceUrl: entry.sourceUrl,
+        sourceTitle: entry.sourceTitle,
+        timestamp: entry.timestamp
+      };
+      
+      journalMessages.push(message);
+      renderJournalMessages();
+      saveJournal();
+      
+      // Switch to journal tab
+      switchTab('journal');
+      
+      // Clear the pending entry
+      chrome.storage.local.remove(['pendingJournalEntry']);
     }
   });
 }
@@ -325,28 +355,79 @@ function renderJournalMessages() {
   
   container.innerHTML = '';
   
+  if (journalMessages.length === 0) {
+    container.innerHTML = '<div class="journal-empty">No messages yet. Start writing your thoughts!</div>';
+    return;
+  }
+  
+  // Group messages by date
+  const messagesByDate = {};
   journalMessages.forEach(message => {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `journal-message ${message.type}`;
+    const date = new Date(message.timestamp).toDateString();
+    if (!messagesByDate[date]) {
+      messagesByDate[date] = [];
+    }
+    messagesByDate[date].push(message);
+  });
+  
+  // Sort dates in descending order (newest first)
+  const sortedDates = Object.keys(messagesByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  
+  sortedDates.forEach(dateStr => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
     
-    const timestamp = new Date(message.timestamp).toLocaleString();
+    // Create date header
+    const dateHeader = document.createElement('div');
+    dateHeader.className = 'journal-date-header';
     
-    if (message.type === 'quote') {
-      messageDiv.innerHTML = `
-        <div class="journal-message-content">${message.content}</div>
-        <div class="journal-quote-source">
-          <a href="${message.sourceUrl}" target="_blank">${message.sourceTitle || 'Source'}</a>
-        </div>
-        <div class="journal-message-time">${timestamp}</div>
-      `;
+    let dateLabel;
+    if (date.toDateString() === today.toDateString()) {
+      dateLabel = 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      dateLabel = 'Yesterday';
     } else {
-      messageDiv.innerHTML = `
-        <div class="journal-message-content">${message.content}</div>
-        <div class="journal-message-time">${timestamp}</div>
-      `;
+      dateLabel = date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
     }
     
-    container.appendChild(messageDiv);
+    dateHeader.textContent = dateLabel;
+    container.appendChild(dateHeader);
+    
+    // Add messages for this date
+    messagesByDate[dateStr].forEach(message => {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `journal-message ${message.type}`;
+      
+      const timestamp = new Date(message.timestamp).toLocaleString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      
+      if (message.type === 'quote') {
+        messageDiv.innerHTML = `
+          <div class="journal-message-content">${message.content}</div>
+          <div class="journal-quote-source">
+            <a href="${message.sourceUrl}" target="_blank">${message.sourceTitle || 'Source'}</a>
+          </div>
+          <div class="journal-message-time">${timestamp}</div>
+        `;
+      } else {
+        messageDiv.innerHTML = `
+          <div class="journal-message-content">${message.content}</div>
+          <div class="journal-message-time">${timestamp}</div>
+        `;
+      }
+      
+      container.appendChild(messageDiv);
+    });
   });
   
   // Scroll to bottom
@@ -374,52 +455,11 @@ function addToJournal(text, sourceUrl, sourceTitle) {
   }
 }
 
-// Right-click context menu handler
+// Right-click context menu handler (disabled - now handled by background script)
 function setupContextMenu() {
-  document.addEventListener('contextmenu', (e) => {
-    const selection = window.getSelection().toString().trim();
-    if (selection) {
-      e.preventDefault();
-      
-      const menu = document.createElement('div');
-      menu.style.cssText = `
-        position: fixed;
-        background: #171717;
-        border: 1px solid #262626;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 1000;
-        min-width: 140px;
-        left: ${e.pageX}px;
-        top: ${e.pageY}px;
-      `;
-      
-      menu.innerHTML = `
-        <div style="padding: 4px;">
-          <button onclick="addSelectedToJournal('${selection.replace(/'/g, "\\'")}'); this.parentElement.parentElement.remove()" style="width: 100%; padding: 8px 12px; background: none; border: none; color: #e5e5e5; text-align: left; cursor: pointer; border-radius: 4px; font-size: 12px;" onmouseover="this.style.background='#262626'" onmouseout="this.style.background='none'">📝 Add to Journal</button>
-        </div>
-      `;
-      
-      document.body.appendChild(menu);
-      
-      // Close menu when clicking outside
-      setTimeout(() => {
-        document.addEventListener('click', function closeMenu() {
-          menu.remove();
-          document.removeEventListener('click', closeMenu);
-        });
-      }, 0);
-    }
-  });
-}
-
-function addSelectedToJournal(text) {
-  // Get current tab info for source
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]) {
-      addToJournal(text, tabs[0].url, tabs[0].title);
-    }
-  });
+  // Context menu is now handled by background.js
+  // This function is kept for compatibility but does nothing
+  console.log('Context menu setup delegated to background script');
 }
 
 // Update context list UI
