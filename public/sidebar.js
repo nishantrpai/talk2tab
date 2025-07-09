@@ -51,19 +51,24 @@ const clearJournalBtn = document.getElementById('clearJournal');
 // Journal messages array
 let journalMessages = [];
 
-// Save chat message to journal - defined early so it's available for onclick handlers
-function addMessageToJournal(messageIndex) {
+// Save chat message to journal - used by event listeners for Add to journal buttons
+function addMessageToJournal(messageIndex, buttonElement) {
   const message = chatHistory[messageIndex];
-  console.log('Adding message to journal:', message);
-  if (!message || message.role !== 'assistant') return;
+  console.log('Adding message to journal. Index:', messageIndex, 'Message:', message, 'Total history:', chatHistory.length);
+  if (!message) return;
+  
+  // Allow both user questions and assistant responses to be saved
+  const messageType = message.role === 'user' ? 'question' : 'quote';
+  const sourceTitle = message.role === 'user' ? 'My Question' : 
+                     (currentTabContext ? currentTabContext.title : 'AI Response');
   
   // Add message to journal
   const journalEntry = {
     id: Date.now(),
-    type: 'quote',
+    type: messageType,
     content: message.content,
     sourceUrl: currentTabContext ? currentTabContext.url : window.location.href,
-    sourceTitle: currentTabContext ? currentTabContext.title : 'AI Response',
+    sourceTitle: sourceTitle,
     timestamp: new Date().toISOString()
   };
   
@@ -71,19 +76,18 @@ function addMessageToJournal(messageIndex) {
   renderJournalMessages();
   saveJournal();
   
-  // Show brief feedback
-  const btn = document.querySelector(`[onclick="addMessageToJournal(${messageIndex})"]`);
-  if (btn) {
-    const icon = btn.querySelector('[data-feather]');
+  // Show brief feedback on the button that was clicked
+  if (buttonElement) {
+    const icon = buttonElement.querySelector('[data-feather]');
     if (icon) {
       icon.setAttribute('data-feather', 'check');
-      btn.style.color = '#22c55e';
+      buttonElement.style.color = '#22c55e';
       if (window.feather) {
         window.feather.replace(); // Re-render icons
       }
       setTimeout(() => {
         icon.setAttribute('data-feather', 'book-open');
-        btn.style.color = '#737373';
+        buttonElement.style.color = '#737373';
         if (window.feather) {
           window.feather.replace(); // Re-render icons
         }
@@ -92,8 +96,6 @@ function addMessageToJournal(messageIndex) {
   }
 }
 
-// Make function globally available IMMEDIATELY
-window.addMessageToJournal = addMessageToJournal;
 
 // Initialize sidebar
 document.addEventListener('DOMContentLoaded', () => {
@@ -543,6 +545,17 @@ function renderJournalMessages() {
             <i data-feather="more-horizontal"></i>
           </div>
         `;
+      } else if (message.type === 'question') {
+        messageDiv.innerHTML = `
+          <div class="journal-message-content">❓ ${message.content}</div>
+          <div class="journal-quote-source">
+            <a href="${message.sourceUrl}" target="_blank">${message.sourceTitle || 'My Question'}</a>
+          </div>
+          <div class="journal-message-time">${timestamp}</div>
+          <div class="journal-message-menu" data-message-id="${message.id}">
+            <i data-feather="more-horizontal"></i>
+          </div>
+        `;
       } else {
         messageDiv.innerHTML = `
           <div class="journal-message-content">${message.content}</div>
@@ -739,6 +752,9 @@ async function sendMessage() {
   // Add user message to chat
   chatHistory.push({ role: 'user', content: message });
   updateChatMessages();
+  
+  // Ensure event listeners are attached for user message
+  attachJournalButtonListeners();
 
   // Clear input
   chatInput.value = '';
@@ -786,6 +802,7 @@ Try:
 You can still ask general questions, but I won't have specific page context to reference.` 
       });
       updateChatMessages();
+      attachJournalButtonListeners(); // Ensure event listeners are attached
       setLoading(false);
       return;
     }
@@ -837,6 +854,9 @@ Please provide helpful, accurate responses based on the context provided. Focus 
     // Add assistant response to chat
     chatHistory.push({ role: 'assistant', content: assistantMessage });
     updateChatMessages();
+    
+    // Ensure event listeners are attached immediately
+    attachJournalButtonListeners();
 
     // Save chat history
     chrome.runtime.sendMessage({
@@ -853,6 +873,7 @@ Please provide helpful, accurate responses based on the context provided. Focus 
       content: `Error: ${error.message}. Please make sure LM Studio is running on http://localhost:1234` 
     });
     updateChatMessages();
+    attachJournalButtonListeners(); // Ensure event listeners are attached
   } finally {
     setLoading(false);
   }
@@ -879,7 +900,8 @@ function updateChatMessages() {
         .replace(/\[(.*?)\]\(.*?\)/g, '$1'); // Remove links, keep text
     }
     
-    const saveButton = msg.role === 'assistant' ? 
+    // Add journal button for both user questions and assistant responses
+    const saveButton = (msg.role === 'assistant' || msg.role === 'user') ? 
       `<button class="note-action-btn" data-message-index="${index}" title="Add to journal" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); border: none; color: #737373; padding: 4px; border-radius: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
         <i data-feather="book-open" style="width: 12px; height: 12px;"></i>
       </button>` : '';
@@ -895,20 +917,38 @@ function updateChatMessages() {
   // Scroll to bottom
   chatMessages.scrollTop = chatMessages.scrollHeight;
 
-  // for each chat message add event listener to save to journal
-  const noteActionButtons = chatMessages.querySelectorAll('.note-action-btn');
+  // Attach event listeners to journal buttons
+  attachJournalButtonListeners();
+}
 
-  noteActionButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
+// Helper function to attach event listeners to journal buttons
+function attachJournalButtonListeners() {
+  // Use a slight delay to ensure DOM is ready
+  setTimeout(() => {
+    if (!chatMessages) return; // Null check
+    
+    const noteActionButtons = chatMessages.querySelectorAll('.note-action-btn:not([data-listener-attached])');
+    console.log('Attaching listeners to', noteActionButtons.length, 'journal buttons');
+    
+    noteActionButtons.forEach((btn) => {
       const messageIndex = parseInt(btn.getAttribute('data-message-index') || '0');
-      addMessageToJournal(messageIndex);
+      console.log('Attaching listener to button for message index:', messageIndex);
+      
+      // Mark as having listener attached to avoid duplicates
+      btn.setAttribute('data-listener-attached', 'true');
+      
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        console.log('Journal button clicked for message index:', messageIndex);
+        addMessageToJournal(messageIndex, btn);
+      });
     });
-  });
-
-  // Replace feather icons
-  if (window.feather) {
-    window.feather.replace();
-  }
+    
+    // Replace feather icons after DOM manipulation
+    if (window.feather) {
+      window.feather.replace();
+    }
+  }, 10);
 }
 
 // Set loading state
