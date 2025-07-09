@@ -55,19 +55,75 @@ const extractFavicon = () => {
 
 // Extract page content for LLM context
 const extractPageContent = () => {
-  // Get main content, avoiding navigation, ads, etc.
-  const content = document.body.innerText || document.body.textContent || '';
-  
-  // Clean up content - remove extra whitespace
-  const cleanContent = content.replace(/\s+/g, ' ').trim();
-  
-  return {
-    url: window.location.href,
-    title: document.title,
-    content: cleanContent,
-    favicon: extractFavicon(),
-    timestamp: Date.now()
-  };
+  try {
+    // Get full HTML content including structure, links, etc.
+    let content = '';
+    
+    // Try to get main content areas first (article, main, content areas)
+    const mainSelectors = [
+      'main',
+      'article', 
+      '[role="main"]',
+      '.content',
+      '.main-content',
+      '#content',
+      '#main'
+    ];
+    
+    let mainElement = null;
+    for (const selector of mainSelectors) {
+      mainElement = document.querySelector(selector);
+      if (mainElement) break;
+    }
+    
+    // If we found a main content area, use that, otherwise use body
+    const targetElement = mainElement || document.body;
+    
+    if (targetElement) {
+      // Get the full innerHTML to preserve structure and links
+      content = targetElement.innerHTML || '';
+      
+      // Also include text content as fallback
+      if (!content) {
+        content = targetElement.innerText || targetElement.textContent || '';
+      }
+    }
+    
+    console.log('Snip: Extracted content details:', {
+      selector: mainElement ? 'main content area' : 'document.body',
+      contentLength: content.length,
+      url: window.location.href,
+      title: document.title
+    });
+    
+    // Clean up content - remove script tags and excessive whitespace
+    let cleanContent = content
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '') // Remove style tags
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+    
+    return {
+      url: window.location.href,
+      title: document.title,
+      content: cleanContent,
+      favicon: extractFavicon(),
+      timestamp: Date.now()
+    };
+  } catch (error) {
+    console.error('Snip: Error extracting page content:', error);
+    
+    // Fallback to basic text extraction
+    const fallbackContent = document.body ? (document.body.innerText || document.body.textContent || '') : '';
+    
+    return {
+      url: window.location.href,
+      title: document.title,
+      content: fallbackContent.replace(/\s+/g, ' ').trim(),
+      favicon: extractFavicon(),
+      timestamp: Date.now()
+    };
+  }
 };
 
 // Send page data to extension

@@ -120,6 +120,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Current currentTabContext before update:', currentTabContext);
     console.log('Current pinnedContexts before update:', pinnedContexts);
     
+    // DETAILED CONTENT DEBUGGING
+    if (message.context) {
+      console.log('New context content details:', {
+        url: message.context.url,
+        title: message.context.title,
+        hasContent: !!message.context.content,
+        contentLength: message.context.content ? message.context.content.length : 0,
+        contentPreview: message.context.content ? message.context.content.substring(0, 200) + '...' : 'NO CONTENT'
+      });
+    }
+    
     // Update current tab context (replaces previous current tab context)
     currentTabContext = message.context;
     
@@ -164,12 +175,35 @@ function loadStoredData() {
   chrome.storage.local.get(['pinnedContexts'], (result) => {
     if (result.pinnedContexts) {
       pinnedContexts = result.pinnedContexts;
-      console.log('Loaded pinned contexts from storage:', pinnedContexts);
+      console.log('Loaded pinned contexts from storage:', pinnedContexts.map(ctx => ({
+        url: ctx.url,
+        title: ctx.title,
+        contentLength: ctx.content ? ctx.content.length : 0,
+        hasContent: !!ctx.content,
+        contentPreview: ctx.content ? ctx.content.substring(0, 200) + '...' : 'NO CONTENT FOUND'
+      })));
+      
+      // Check if any pinned context is missing content
+      const missingContent = pinnedContexts.filter(ctx => !ctx.content || ctx.content.length === 0);
+      if (missingContent.length > 0) {
+        console.warn('WARNING: Found pinned contexts without content:', missingContent.map(ctx => ({
+          url: ctx.url,
+          title: ctx.title
+        })));
+      }
+    } else {
+      console.log('No pinned contexts found in storage');
     }
     
     // Then get the current tab context
     chrome.runtime.sendMessage({ type: 'GET_CURRENT_TAB_CONTENT' }, (response) => {
-      console.log('Got current tab content on load:', response);
+      console.log('Got current tab content on load:', response ? {
+        url: response.url,
+        title: response.title,
+        contentLength: response.content ? response.content.length : 0,
+        hasContent: !!response.content
+      } : 'No response');
+      
       if (response) {
         currentTabContext = response; // Set as current tab context
         updateContextList();
@@ -651,6 +685,7 @@ function updateContextList() {
     
     // replace unicodes and links from title, limit title length to 50 chars
     const sanitizedTitle = title.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/<[^>]*>/g, '').substring(0, 50);
+    const contentSize = currentTabContext.content ? `${(currentTabContext.content.length / 1024).toFixed(1)}kb` : '0kb';
 
     contextHtml += `
       <div class="context-tab" onclick="openTab('${currentTabContext.url}')">
@@ -659,7 +694,7 @@ function updateContextList() {
           <div class="context-tab-title">
             ${sanitizedTitle} <span style="color: #888; font-size: 11px;">(Current Tab)</span>
           </div>
-          <div class="context-tab-url">${hostname}</div>
+          <div class="context-tab-url">${hostname} • ${contentSize}</div>
         </div>
         <button class="context-tab-pin" title="Pin this tab to context">+</button>
       </div>
@@ -675,6 +710,7 @@ function updateContextList() {
     console.log(`Adding pinned context ${index}:`, { title, hostname });
     
     const sanitizedTitle = title.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/<[^>]*>/g, '').substring(0, 50);
+    const contentSize = ctx.content ? `${(ctx.content.length / 1024).toFixed(1)}kb` : '0kb';
     // Use sanitized title to prevent XSS
     
     contextHtml += `
@@ -684,7 +720,7 @@ function updateContextList() {
           <div class="context-tab-title">
             ${title} <span style="color: #888; font-size: 11px;">(Pinned)</span>
           </div>
-          <div class="context-tab-url">${hostname}</div>
+          <div class="context-tab-url">${hostname} • ${contentSize}</div>
         </div>
         <button class="context-tab-close" data-index="${index}" title="Remove from context">×</button>
       </div>
@@ -706,17 +742,35 @@ function pinCurrentTab() {
     const alreadyPinned = pinnedContexts.some(ctx => ctx.url === currentTabContext.url);
     if (!alreadyPinned) {
       pinnedContexts.push({ ...currentTabContext });
-      console.log('Pinned current tab:', currentTabContext.url);
+      console.log('Pinned current tab:', {
+        url: currentTabContext.url,
+        title: currentTabContext.title,
+        contentLength: currentTabContext.content ? currentTabContext.content.length : 0,
+        hasContent: !!currentTabContext.content
+      });
       
       // Save to storage
       chrome.storage.local.set({ pinnedContexts: pinnedContexts }, () => {
         console.log('Saved pinned contexts to storage');
+        console.log('Verifying saved content - checking first pinned context:');
+        if (pinnedContexts.length > 0) {
+          const firstPinned = pinnedContexts[0];
+          console.log('First pinned context content preview:', {
+            url: firstPinned.url,
+            title: firstPinned.title,
+            hasContent: !!firstPinned.content,
+            contentLength: firstPinned.content ? firstPinned.content.length : 0,
+            contentPreview: firstPinned.content ? firstPinned.content.substring(0, 200) + '...' : 'NO CONTENT'
+          });
+        }
       });
       
       updateContextList();
     } else {
       console.log('Tab already pinned:', currentTabContext.url);
     }
+  } else {
+    console.log('Cannot pin tab: no currentTabContext available');
   }
 }
 
@@ -803,6 +857,28 @@ async function sendMessage() {
     let contextString = '';
     let hasContext = false;
     
+    // ENHANCED DEBUG LOGGING
+    console.log('=== SENDING MESSAGE TO LLM ===');
+    console.log('User question:', message);
+    console.log('Current tab context available:', !!currentTabContext);
+    console.log('Number of pinned contexts:', pinnedContexts.length);
+    
+    if (currentTabContext) {
+      console.log('Current tab details:', {
+        url: currentTabContext.url,
+        title: currentTabContext.title,
+        contentLength: currentTabContext.content ? currentTabContext.content.length : 0,
+        hasContent: !!currentTabContext.content
+      });
+    }
+    
+    console.log('Pinned contexts details:', pinnedContexts.map(ctx => ({
+      url: ctx.url,
+      title: ctx.title,
+      contentLength: ctx.content ? ctx.content.length : 0,
+      hasContent: !!ctx.content
+    })));
+    
     // Add current tab context first (this is what user is referring to by default)
     if (currentTabContext) {
       contextString += `CURRENT TAB (what user is referring to by default):\n`;
@@ -820,6 +896,10 @@ async function sendMessage() {
       ).join('\n\n---\n\n');
       hasContext = true;
     }
+    
+    console.log('Context string length:', contextString.length);
+    console.log('Has any context:', hasContext);
+    console.log('Full context string preview (first 500 chars):', contextString.substring(0, 500) + '...');
 
     // Check if we have any context at all
     if (!hasContext) {
@@ -845,6 +925,30 @@ You can still ask general questions, but I won't have specific page context to r
       return;
     }
 
+    // Console log the context and question being sent for debugging
+    console.log('=== SENDING TO LLM ===');
+    console.log('User question:', message);
+    console.log('Has current tab context:', !!currentTabContext);
+    console.log('Number of pinned contexts:', pinnedContexts.length);
+    console.log('Full context string length:', contextString.length);
+    console.log('Context string preview:', contextString.substring(0, 500) + '...');
+    
+    if (currentTabContext) {
+      console.log('Current tab details:', {
+        url: currentTabContext.url,
+        title: currentTabContext.title,
+        contentLength: currentTabContext.content?.length || 0
+      });
+    }
+    
+    if (pinnedContexts.length > 0) {
+      console.log('Pinned contexts details:', pinnedContexts.map(ctx => ({
+        url: ctx.url,
+        title: ctx.title,
+        contentLength: ctx.content?.length || 0
+      })));
+    }
+
     // Prepare system message with format instructions and response style
     const formatInstructions = {
       text: 'Respond in plain text format.',
@@ -864,6 +968,9 @@ ${contextString}
 ${formatInstructions[currentFormat]}
 
 Please provide helpful, accurate responses based on the context provided. Focus on the current tab content unless the user specifically asks about other pages.`;
+
+    console.log('System message length:', systemMessage.length);
+    console.log('========================');
 
     // Send to LLM using settings
     const response = await fetch(settings.apiEndpoint, {
