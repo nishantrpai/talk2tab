@@ -67,7 +67,7 @@ Sorted by priority:/impact
 **High Priority (Bugs & Core UX)**
 - [x] Fix "Add to journal" button in chat responses not working
 - [x] Make chat input static at bottom, improve journal design consistency with feather icons
-- [ ] Replace format buttons (JSON, Table) with dropdown menu
+- [x] Replace format buttons (JSON, Table) with dropdown menu
 - [ ] Fix oversized icons - make smaller, subtle, grayscale minimalist (Steve Schoger principles)
 
 **Medium Priority (Features)**

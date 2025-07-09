@@ -46,7 +46,7 @@ const journalTab = document.getElementById('journalTab');
 const journalContainer = document.getElementById('journalMessages');
 const journalInput = document.getElementById('journalInput');
 const journalSendBtn = document.getElementById('journalSendBtn');
-const clearJournalBtn = document.getElementById('clearJournal');
+const journalMenuBtn = document.getElementById('journalMenuBtn');
 
 // Journal messages array
 let journalMessages = [];
@@ -300,7 +300,7 @@ function setupEventListeners() {
       sendJournalMessage();
     }
   });
-  clearJournalBtn.addEventListener('click', clearJournal);
+  journalMenuBtn.addEventListener('click', showJournalHeaderMenu);
   
   // Journal message menu event delegation
   document.addEventListener('click', (e) => {
@@ -1366,6 +1366,57 @@ function deleteJournalMessage(messageId) {
   }
 }
 
+// Show journal header menu
+function showJournalHeaderMenu(event) {
+  event.stopPropagation();
+  
+  // Remove any existing menu
+  const existingMenu = document.querySelector('.journal-header-dropdown');
+  if (existingMenu) {
+    existingMenu.remove();
+    return;
+  }
+  
+  const menu = document.createElement('div');
+  menu.className = 'journal-header-dropdown';
+  
+  menu.innerHTML = `
+    <button onclick="clearJournal(); closeJournalHeaderMenu();" class="danger">
+      <i data-feather="trash-2" style="width: 12px; height: 12px;"></i>
+      Clear Journal
+    </button>
+  `;
+  
+  // Position the menu relative to the journal header
+  const journalHeader = event.target.closest('.journal-header');
+  if (journalHeader) {
+    journalHeader.appendChild(menu);
+  }
+  
+  // Re-render Feather icons
+  if (window.feather) {
+    window.feather.replace();
+  }
+  
+  // Close menu when clicking outside
+  setTimeout(() => {
+    function closeMenu(e) {
+      if (!menu.contains(e.target) && !e.target.closest('.journal-menu-btn')) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    }
+    document.addEventListener('click', closeMenu);
+  }, 0);
+}
+
+function closeJournalHeaderMenu() {
+  const menu = document.querySelector('.journal-header-dropdown');
+  if (menu) {
+    menu.remove();
+  }
+}
+
 // Global functions for inline event handlers
 window.removeContext = removeContext;
 window.openTab = openTab;
@@ -1373,3 +1424,5 @@ window.showJournalMessageMenu = showJournalMessageMenu;
 window.closeJournalMessageMenu = closeJournalMessageMenu;
 window.addJournalMessageToChat = addJournalMessageToChat;
 window.deleteJournalMessage = deleteJournalMessage;
+window.clearJournal = clearJournal;
+window.closeJournalHeaderMenu = closeJournalHeaderMenu;
