@@ -59,9 +59,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'CONTEXT_UPDATED') {
     console.log('Received context update from background:', message.context);
     
-    // Update the current tab context
-    contexts = contexts.filter(ctx => ctx.url !== message.context.url); // Remove existing
-    contexts.unshift(message.context); // Add to beginning
+    // Clear existing contexts and set the new current tab context
+    contexts = [];
+    contexts.unshift(message.context); // Add as the primary context
     
     // Update UI
     updateContextList();
@@ -419,10 +419,10 @@ function renderJournalMessages() {
     }
     messagesByDate[date].push(message);
   });
-  
-  // Sort dates in descending order (newest first)
-  const sortedDates = Object.keys(messagesByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-  
+
+  // Sort dates in ascending order (oldest first)
+  const sortedDates = Object.keys(messagesByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
   sortedDates.forEach(dateStr => {
     const date = new Date(dateStr);
     const today = new Date();
@@ -525,24 +525,32 @@ function setupContextMenu() {
 
 // Update context list UI
 function updateContextList() {
-  const totalContexts = contexts.length + 1; // +1 for current tab
-  contextCount.textContent = totalContexts.toString();
+  contextCount.textContent = contexts.length.toString();
   
   if (contexts.length === 0) {
     contextTabs.innerHTML = '<div class="context-empty">Context updates automatically when you switch tabs</div>';
     return;
   }
 
-  contextTabs.innerHTML = contexts.map((ctx, index) => `
-    <div class="context-tab" onclick="openTab('${ctx.url}')">
-      <div class="context-tab-favicon"></div>
-      <div class="context-tab-info">
-        <div class="context-tab-title">${ctx.title || 'Untitled'}</div>
-        <div class="context-tab-url">${new URL(ctx.url).hostname}</div>
+  contextTabs.innerHTML = contexts.map((ctx, index) => {
+    const isCurrentTab = index === 0; // First context is always current tab
+    const hostname = ctx.url ? new URL(ctx.url).hostname : 'Unknown';
+    const title = ctx.title || 'Untitled';
+    
+    return `
+      <div class="context-tab" onclick="openTab('${ctx.url}')">
+        <div class="context-tab-favicon"></div>
+        <div class="context-tab-info">
+          <div class="context-tab-title">
+            ${isCurrentTab ? '🔵 ' : ''}${title}
+            ${isCurrentTab ? ' <span style="color: #888; font-size: 11px;">(Current Tab)</span>' : ''}
+          </div>
+          <div class="context-tab-url">${hostname}</div>
+        </div>
+        ${isCurrentTab ? '' : `<button class="context-tab-close" onclick="event.stopPropagation(); removeContext(${index})" title="Remove from context">×</button>`}
       </div>
-      <button class="context-tab-close" onclick="event.stopPropagation(); removeContext(${index})" title="Remove from context">×</button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // Remove context item

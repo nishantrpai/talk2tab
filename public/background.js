@@ -191,21 +191,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
-// Auto-capture page content when tabs are updated
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
-    // Give the page a moment to load, then extract content
-    setTimeout(() => {
-      chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
-        if (response && !chrome.runtime.lastError) {
-          pageContexts.set(response.url, response);
-          console.log('Auto-captured page content for:', response.url);
-        }
-      });
-    }, 2000);
-  }
-});
-
 // Handle messages from content scripts and sidebar
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background received message:', request.type);
