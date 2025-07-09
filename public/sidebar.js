@@ -630,15 +630,17 @@ function updateContextList() {
   if (currentTabContext) {
     const hostname = currentTabContext.url ? new URL(currentTabContext.url).hostname : 'Unknown';
     const title = currentTabContext.title || 'Untitled';
+    console.log('Current tab context:', currentTabContext);
+    const favicon = currentTabContext.favicon || 'https://www.google.com/s2/favicons?domain=' + hostname;
     
     console.log('Adding current tab context:', { title, hostname });
     
     contextHtml += `
       <div class="context-tab" onclick="openTab('${currentTabContext.url}')">
-        <div class="context-tab-favicon"></div>
+        <div class="context-tab-favicon" style="background-image: url('${favicon}');"></div>
         <div class="context-tab-info">
           <div class="context-tab-title">
-            🔵 ${title} <span style="color: #888; font-size: 11px;">(Current Tab)</span>
+            ${title} <span style="color: #888; font-size: 11px;">(Current Tab)</span>
           </div>
           <div class="context-tab-url">${hostname}</div>
         </div>
