@@ -14,6 +14,40 @@ let currentPageData = {
   timestamp: Date.now()
 };
 
+// Extract favicon URL from the page
+const extractFavicon = () => {
+  // Try to find favicon link tag
+  let faviconUrl = null;
+  
+  // Look for various favicon link tags
+  const faviconSelectors = [
+    'link[rel*="icon"]',
+    'link[rel="shortcut icon"]',
+    'link[rel="apple-touch-icon"]',
+    'link[rel="icon"]'
+  ];
+  
+  for (const selector of faviconSelectors) {
+    const link = document.querySelector(selector);
+    if (link && link.getAttribute('href')) {
+      faviconUrl = link.getAttribute('href');
+      // Convert relative URLs to absolute
+      if (faviconUrl && !faviconUrl.startsWith('http')) {
+        faviconUrl = new URL(faviconUrl, window.location.href).href;
+      }
+      break;
+    }
+  }
+  
+  // Fallback to default favicon.ico
+  if (!faviconUrl) {
+    const url = new URL(window.location.href);
+    faviconUrl = `${url.protocol}//${url.host}/favicon.ico`;
+  }
+  
+  return faviconUrl;
+};
+
 // Extract page content for LLM context
 const extractPageContent = () => {
   // Get main content, avoiding navigation, ads, etc.
@@ -26,6 +60,7 @@ const extractPageContent = () => {
     url: window.location.href,
     title: document.title,
     content: cleanContent,
+    favicon: extractFavicon(),
     timestamp: Date.now()
   };
 };

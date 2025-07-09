@@ -160,17 +160,25 @@ setInterval(() => {
 
 // Load stored contexts and chat history
 function loadStoredData() {
-  // First, get the current tab context
-  chrome.runtime.sendMessage({ type: 'GET_CURRENT_TAB_CONTENT' }, (response) => {
-    console.log('Got current tab content on load:', response);
-    if (response) {
-      contexts = [response]; // Set current tab as the primary context
-      updateContextList();
-    } else {
-      // No current tab context available
-      contexts = [];
-      updateContextList();
+  // Load pinned contexts from storage first
+  chrome.storage.local.get(['pinnedContexts'], (result) => {
+    if (result.pinnedContexts) {
+      pinnedContexts = result.pinnedContexts;
+      console.log('Loaded pinned contexts from storage:', pinnedContexts);
     }
+    
+    // Then get the current tab context
+    chrome.runtime.sendMessage({ type: 'GET_CURRENT_TAB_CONTENT' }, (response) => {
+      console.log('Got current tab content on load:', response);
+      if (response) {
+        currentTabContext = response; // Set as current tab context
+        updateContextList();
+      } else {
+        // No current tab context available
+        currentTabContext = null;
+        updateContextList();
+      }
+    });
   });
 
   chrome.runtime.sendMessage({ type: 'GET_CHAT_HISTORY' }, (response) => {
@@ -378,6 +386,12 @@ function addContext(contextData) {
 function clearContext() {
   pinnedContexts = []; // Only clear pinned contexts, keep current tab context
   chatHistory = []; // Also clear chat history since context has changed
+  
+  // Save cleared pinned contexts to storage
+  chrome.storage.local.set({ pinnedContexts: [] }, () => {
+    console.log('Cleared pinned contexts from storage');
+  });
+  
   updateContextList();
   updateChatMessages();
   chrome.runtime.sendMessage({ type: 'CLEAR_CONTEXTS' });
@@ -635,16 +649,19 @@ function updateContextList() {
     
     console.log('Adding current tab context:', { title, hostname });
     
+    // replace unicodes and links from title, limit title length to 50 chars
+    const sanitizedTitle = title.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/<[^>]*>/g, '').substring(0, 50);
+
     contextHtml += `
       <div class="context-tab" onclick="openTab('${currentTabContext.url}')">
         <div class="context-tab-favicon" style="background-image: url('${favicon}');"></div>
         <div class="context-tab-info">
           <div class="context-tab-title">
-            ${title} <span style="color: #888; font-size: 11px;">(Current Tab)</span>
+            ${sanitizedTitle} <span style="color: #888; font-size: 11px;">(Current Tab)</span>
           </div>
           <div class="context-tab-url">${hostname}</div>
         </div>
-        <button class="context-tab-pin" onclick="event.stopPropagation(); pinCurrentTab()" title="Pin this tab to context">+</button>
+        <button class="context-tab-pin" title="Pin this tab to context">+</button>
       </div>
     `;
   }
@@ -653,25 +670,32 @@ function updateContextList() {
   pinnedContexts.forEach((ctx, index) => {
     const hostname = ctx.url ? new URL(ctx.url).hostname : 'Unknown';
     const title = ctx.title || 'Untitled';
+    const favicon = ctx.favicon || 'https://www.google.com/s2/favicons?domain=' + hostname;
     
     console.log(`Adding pinned context ${index}:`, { title, hostname });
     
+    const sanitizedTitle = title.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/<[^>]*>/g, '').substring(0, 50);
+    // Use sanitized title to prevent XSS
+    
     contextHtml += `
       <div class="context-tab" onclick="openTab('${ctx.url}')">
-        <div class="context-tab-favicon"></div>
+        <div class="context-tab-favicon" style="background-image: url('${favicon}');"></div>
         <div class="context-tab-info">
           <div class="context-tab-title">
-            � ${title} <span style="color: #888; font-size: 11px;">(Pinned)</span>
+            ${title} <span style="color: #888; font-size: 11px;">(Pinned)</span>
           </div>
           <div class="context-tab-url">${hostname}</div>
         </div>
-        <button class="context-tab-close" onclick="event.stopPropagation(); removePinnedContext(${index})" title="Remove from context">×</button>
+        <button class="context-tab-close" data-index="${index}" title="Remove from context">×</button>
       </div>
     `;
   });
   
   contextTabs.innerHTML = contextHtml;
   console.log('Context tabs HTML updated');
+  
+  // Re-attach event listeners for pin/close buttons after DOM update
+  attachContextButtonListeners();
 }
 
 // Remove context item
@@ -683,6 +707,12 @@ function pinCurrentTab() {
     if (!alreadyPinned) {
       pinnedContexts.push({ ...currentTabContext });
       console.log('Pinned current tab:', currentTabContext.url);
+      
+      // Save to storage
+      chrome.storage.local.set({ pinnedContexts: pinnedContexts }, () => {
+        console.log('Saved pinned contexts to storage');
+      });
+      
       updateContextList();
     } else {
       console.log('Tab already pinned:', currentTabContext.url);
@@ -694,6 +724,12 @@ function removePinnedContext(index) {
   if (index >= 0 && index < pinnedContexts.length) {
     const removed = pinnedContexts.splice(index, 1)[0];
     console.log('Removed pinned context:', removed.url);
+    
+    // Save to storage
+    chrome.storage.local.set({ pinnedContexts: pinnedContexts }, () => {
+      console.log('Saved updated pinned contexts to storage');
+    });
+    
     updateContextList();
   }
 }
@@ -944,6 +980,54 @@ function attachJournalButtonListeners() {
         console.log('Journal button clicked for message index:', messageIndex);
         addMessageToJournal(messageIndex, btn);
       });
+    });
+    
+    // Replace feather icons after DOM manipulation
+    if (window.feather) {
+      window.feather.replace();
+    }
+  }, 10);
+}
+
+// Helper function to attach event listeners to context buttons
+function attachContextButtonListeners() {
+  // Use a slight delay to ensure DOM is ready
+  setTimeout(() => {
+    if (!contextTabs) return; // Null check
+    
+    // Attach listeners to pin buttons (for current tab)
+    const pinButtons = contextTabs.querySelectorAll('.context-tab-pin:not([data-listener-attached])');
+    console.log('Attaching listeners to', pinButtons.length, 'pin buttons');
+    
+    pinButtons.forEach((btn) => {
+      // Mark as having listener attached to avoid duplicates
+      btn.setAttribute('data-listener-attached', 'true');
+      
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        console.log('Pin button clicked');
+        pinCurrentTab();
+      });
+    });
+    
+    // Attach listeners to close buttons (for pinned contexts)
+    const closeButtons = contextTabs.querySelectorAll('.context-tab-close:not([data-listener-attached])');
+    console.log('Attaching listeners to', closeButtons.length, 'close buttons');
+    
+    closeButtons.forEach((btn) => {
+      // Get the index from the data-index attribute
+      const index = parseInt(btn.getAttribute('data-index') || '-1');
+      
+      if (index >= 0) {
+        // Mark as having listener attached to avoid duplicates
+        btn.setAttribute('data-listener-attached', 'true');
+        
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          console.log('Close button clicked for index:', index);
+          removePinnedContext(index);
+        });
+      }
     });
     
     // Replace feather icons after DOM manipulation
