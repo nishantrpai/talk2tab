@@ -59,3 +59,26 @@ TODO:
 11. Design change: the icons everywhere are too out of proportion, they need to be smaller and more subtle. Follow the design rules of steveschoger. Maintain grayscale and minimalism. 
 12. Allow the ability to add journal in context. Should be part of agent by default i feel.
 13. Give the ability to add todo list items in the journal. That can be checked off. A future goal would be people would be able to use this as a todo list manager, ask the llm to summarize what they got done today/this week.
+
+
+Sorted by priority:/impact
+## TODO
+
+**High Priority (Bugs & Core UX)**
+- [x] Fix "Add to journal" button in chat responses not working
+- [x] Make chat input static at bottom, improve journal design consistency with feather icons
+- [ ] Replace format buttons (JSON, Table) with dropdown menu
+- [ ] Fix oversized icons - make smaller, subtle, grayscale minimalist (Steve Schoger principles)
+
+**Medium Priority (Features)**
+- [ ] Auto-summarize long webpage content and display in sidebar
+- [ ] Right-click "Add to context" should auto-summarize page into essential points (not full content)
+- [ ] Include journal content as default context for LLM agent
+- [ ] Add quote text feature in journal with source links (like right-click add to journal)
+- [ ] Todo list functionality in journal with checkable items for task management
+
+**Lower Priority (Advanced Features)**
+- [ ] Full-screen settings page instead of modal popup
+- [ ] Custom website rules system (like Stylebot's per-site rules)
+- [ ] LLM-powered script generation to reshape/modify webpages
+- [ ] Better branding - new name and logo (current is too boring)

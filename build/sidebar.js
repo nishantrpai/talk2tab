@@ -32,6 +32,7 @@ const chatMessages = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('sendBtn');
 const formatButtons = document.querySelectorAll('.format-btn');
+const formatSelect = document.getElementById('formatSelect');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsModal = document.getElementById('settingsModal');
 const closeSettingsBtn = document.getElementById('closeSettings');
@@ -47,6 +48,53 @@ const journalInput = document.getElementById('journalInput');
 const journalSendBtn = document.getElementById('journalSendBtn');
 const clearJournalBtn = document.getElementById('clearJournal');
 
+// Journal messages array
+let journalMessages = [];
+
+// Save chat message to journal - defined early so it's available for onclick handlers
+function addMessageToJournal(messageIndex) {
+  const message = chatHistory[messageIndex];
+  console.log('Adding message to journal:', message);
+  if (!message || message.role !== 'assistant') return;
+  
+  // Add message to journal
+  const journalEntry = {
+    id: Date.now(),
+    type: 'note',
+    content: message.content,
+    sourceUrl: window.location.href,
+    sourceTitle: 'AI Response',
+    timestamp: new Date().toISOString()
+  };
+  
+  journalMessages.push(journalEntry);
+  renderJournalMessages();
+  saveJournal();
+  
+  // Show brief feedback
+  const btn = document.querySelector(`[onclick="addMessageToJournal(${messageIndex})"]`);
+  if (btn) {
+    const icon = btn.querySelector('[data-feather]');
+    if (icon) {
+      icon.setAttribute('data-feather', 'check');
+      btn.style.color = '#22c55e';
+      if (window.feather) {
+        window.feather.replace(); // Re-render icons
+      }
+      setTimeout(() => {
+        icon.setAttribute('data-feather', 'book-open');
+        btn.style.color = '#737373';
+        if (window.feather) {
+          window.feather.replace(); // Re-render icons
+        }
+      }, 1500);
+    }
+  }
+}
+
+// Make function globally available IMMEDIATELY
+window.addMessageToJournal = addMessageToJournal;
+
 // Initialize sidebar
 document.addEventListener('DOMContentLoaded', () => {
   loadStoredData();
@@ -54,6 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupContextMenu();
   updateUI();
+  
+  // Initialize feather icons
+  if (window.feather) {
+    window.feather.replace();
+  }
 });
 
 // Listen for context updates from background script
@@ -198,14 +251,13 @@ function saveSettings() {
 
 // Setup event listeners
 function setupEventListeners() {
-  // Format selector
-  formatButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      formatButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentFormat = btn.dataset.format;
+  // Format selector dropdown
+  if (formatSelect) {
+    formatSelect.addEventListener('change', (e) => {
+      currentFormat = e.target.value;
+      console.log('Format changed to:', currentFormat);
     });
-  });
+  }
 
   // Tab navigation
   tabButtons.forEach(btn => {
@@ -379,8 +431,6 @@ function openTab(url) {
 }
 
 // Journal functionality
-let journalMessages = [];
-
 function loadJournal() {
   chrome.storage.local.get(['journalMessages'], (result) => {
     if (result.journalMessages) {
@@ -830,7 +880,9 @@ function updateChatMessages() {
     }
     
     const saveButton = msg.role === 'assistant' ? 
-      `<button class="note-action-btn" onclick="saveMessageToNotepad(${index})" title="Save to notepad" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.5); border: none; color: #a3a3a3; padding: 4px 6px; border-radius: 3px; cursor: pointer;">📋</button>` : '';
+      `<button class="note-action-btn" title="Add to journal" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); border: none; color: #737373; padding: 4px; border-radius: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+        <i data-feather="book-open" style="width: 12px; height: 12px;"></i>
+      </button>` : '';
     
     return `
       <div class="message ${msg.role}" style="position: relative;">
@@ -842,13 +894,36 @@ function updateChatMessages() {
 
   // Scroll to bottom
   chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  // for each chat message add event listener to save to journal
+  const noteActionButtons = chatMessages.querySelectorAll('.note-action-btn');
+
+  noteActionButtons.forEach((btn, index) => {
+    btn.addEventListener('click', () => {
+      addMessageToJournal(index);
+    });
+  });
+
+  // Replace feather icons
+  if (window.feather) {
+    window.feather.replace();
+  }
 }
 
 // Set loading state
 function setLoading(loading) {
   isLoading = loading;
   sendBtn.disabled = loading;
-  sendBtn.textContent = loading ? 'Sending...' : 'Send';
+  
+  // Update send button content
+  if (loading) {
+    sendBtn.innerHTML = '<div class="spinner" style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>';
+  } else {
+    sendBtn.innerHTML = '<i data-feather="send" style="width: 14px; height: 14px;"></i>';
+    if (window.feather) {
+      window.feather.replace();
+    }
+  }
 
   if (loading) {
     const loadingDiv = document.createElement('div');
@@ -1099,26 +1174,6 @@ function updateNotesList() {
       </div>
     `;
   }).join('');
-}
-
-// Save chat message to notepad
-function saveMessageToNotepad(messageIndex) {
-  const message = chatHistory[messageIndex];
-  if (!message || message.role !== 'assistant') return;
-  
-  addNoteFromText(message.content, 'AI response');
-  
-  // Show brief feedback
-  const btn = document.querySelector(`[onclick="saveMessageToNotepad(${messageIndex})"]`);
-  if (btn) {
-    const originalText = btn.textContent;
-    btn.textContent = '✓';
-    btn.style.color = '#22c55e';
-    setTimeout(() => {
-      btn.textContent = originalText;
-      btn.style.color = '#a3a3a3';
-    }, 1500);
-  }
 }
 
 // Show journal message menu
