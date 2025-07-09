@@ -60,10 +60,10 @@ function addMessageToJournal(messageIndex) {
   // Add message to journal
   const journalEntry = {
     id: Date.now(),
-    type: 'note',
+    type: 'quote',
     content: message.content,
-    sourceUrl: window.location.href,
-    sourceTitle: 'AI Response',
+    sourceUrl: currentTabContext ? currentTabContext.url : window.location.href,
+    sourceTitle: currentTabContext ? currentTabContext.title : 'AI Response',
     timestamp: new Date().toISOString()
   };
   
@@ -880,7 +880,7 @@ function updateChatMessages() {
     }
     
     const saveButton = msg.role === 'assistant' ? 
-      `<button class="note-action-btn" title="Add to journal" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); border: none; color: #737373; padding: 4px; border-radius: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+      `<button class="note-action-btn" data-message-index="${index}" title="Add to journal" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); border: none; color: #737373; padding: 4px; border-radius: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
         <i data-feather="book-open" style="width: 12px; height: 12px;"></i>
       </button>` : '';
     
@@ -898,9 +898,10 @@ function updateChatMessages() {
   // for each chat message add event listener to save to journal
   const noteActionButtons = chatMessages.querySelectorAll('.note-action-btn');
 
-  noteActionButtons.forEach((btn, index) => {
+  noteActionButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
-      addMessageToJournal(index);
+      const messageIndex = parseInt(btn.getAttribute('data-message-index') || '0');
+      addMessageToJournal(messageIndex);
     });
   });
 
