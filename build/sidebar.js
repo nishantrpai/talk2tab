@@ -59,7 +59,7 @@ function addMessageToJournal(messageIndex, buttonElement) {
   
   // Allow both user questions and assistant responses to be saved
   const messageType = message.role === 'user' ? 'question' : 'quote';
-  const sourceTitle = message.role === 'user' ? 'My Question' : 
+  const sourceTitle = message.role === 'user' ? currentTabContext.title :
                      (currentTabContext ? currentTabContext.title : 'AI Response');
   
   // Add message to journal
@@ -547,9 +547,9 @@ function renderJournalMessages() {
         `;
       } else if (message.type === 'question') {
         messageDiv.innerHTML = `
-          <div class="journal-message-content">❓ ${message.content}</div>
+          <div class="journal-message-content">${message.content}</div>
           <div class="journal-quote-source">
-            <a href="${message.sourceUrl}" target="_blank">${message.sourceTitle || 'My Question'}</a>
+            <a href="${message.sourceUrl}" target="_blank">${message.sourceTitle}</a>
           </div>
           <div class="journal-message-time">${timestamp}</div>
           <div class="journal-message-menu" data-message-id="${message.id}">
