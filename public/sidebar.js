@@ -56,15 +56,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Listen for context updates from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Sidebar received message:', message.type, message);
+  
   if (message.type === 'CONTEXT_UPDATED') {
     console.log('Received context update from background:', message.context);
+    console.log('Current contexts before update:', contexts);
     
     // Clear existing contexts and set the new current tab context
     contexts = [];
-    contexts.unshift(message.context); // Add as the primary context
+    
+    if (message.context) {
+      contexts.unshift(message.context); // Add as the primary context
+      console.log('Added new current tab context');
+    } else {
+      console.log('No context available (probably on non-web page)');
+    }
+    
+    console.log('Contexts after update:', contexts);
     
     // Update UI
     updateContextList();
+    console.log('UI updated after context change');
     
     // Send response
     sendResponse({ received: true });
@@ -90,9 +102,15 @@ setInterval(() => {
 
 // Load stored contexts and chat history
 function loadStoredData() {
-  chrome.runtime.sendMessage({ type: 'GET_STORED_CONTEXTS' }, (response) => {
-    if (response && response.contexts) {
-      contexts = response.contexts;
+  // First, get the current tab context
+  chrome.runtime.sendMessage({ type: 'GET_CURRENT_TAB_CONTENT' }, (response) => {
+    console.log('Got current tab content on load:', response);
+    if (response) {
+      contexts = [response]; // Set current tab as the primary context
+      updateContextList();
+    } else {
+      // No current tab context available
+      contexts = [];
       updateContextList();
     }
   });
@@ -525,17 +543,25 @@ function setupContextMenu() {
 
 // Update context list UI
 function updateContextList() {
+  console.log('updateContextList called with contexts:', contexts);
+  console.log('contextCount element:', contextCount);
+  console.log('contextTabs element:', contextTabs);
+  
   contextCount.textContent = contexts.length.toString();
   
   if (contexts.length === 0) {
-    contextTabs.innerHTML = '<div class="context-empty">Context updates automatically when you switch tabs</div>';
+    console.log('No contexts, showing empty message');
+    contextTabs.innerHTML = '<div class="context-empty">No context available. Switch to a webpage to see content here.</div>';
     return;
   }
 
+  console.log('Updating context tabs with', contexts.length, 'contexts');
   contextTabs.innerHTML = contexts.map((ctx, index) => {
     const isCurrentTab = index === 0; // First context is always current tab
     const hostname = ctx.url ? new URL(ctx.url).hostname : 'Unknown';
     const title = ctx.title || 'Untitled';
+    
+    console.log(`Context ${index}:`, { title, hostname, isCurrentTab });
     
     return `
       <div class="context-tab" onclick="openTab('${ctx.url}')">
@@ -551,6 +577,8 @@ function updateContextList() {
       </div>
     `;
   }).join('');
+  
+  console.log('Context tabs HTML updated');
 }
 
 // Remove context item

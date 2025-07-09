@@ -62,13 +62,20 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     // Get the activated tab information
     const tab = await chrome.tabs.get(activeInfo.tabId);
     
-    // Only process web pages (not chrome:// pages)
+    // Only process web pages (not chrome:// pages, extensions, etc.)
     if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
+      console.log('Processing web page:', tab.url);
       // Wait a moment for the page to be ready
       setTimeout(() => {
         // Send message to content script to get page content
         chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' }, (response) => {
-          if (response && !chrome.runtime.lastError) {
+          if (chrome.runtime.lastError) {
+            console.log('Content script not ready yet:', chrome.runtime.lastError.message);
+            // Content script not ready, but don't treat as error
+            return;
+          }
+          
+          if (response) {
             // Update the current tab context
             pageContexts.set('current_tab', response);
             console.log('Auto-updated context for tab switch:', response.url);
@@ -83,6 +90,17 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
           }
         });
       }, 500); // Small delay to ensure page is ready
+    } else {
+      console.log('Skipping non-web page:', tab.url);
+      
+      // For non-web pages, clear the current context and notify sidebar
+      pageContexts.delete('current_tab');
+      chrome.runtime.sendMessage({ 
+        type: 'CONTEXT_UPDATED', 
+        context: null 
+      }).catch(() => {
+        // Sidebar might not be open, that's ok
+      });
     }
   } catch (error) {
     console.error('Error handling tab activation:', error);
