@@ -1,10 +1,10 @@
-// Content script for LLM Agent Chrome Extension
+// Content script for Snip Chrome Extension
 // This script runs in the context of web pages and handles:
 // - Page content extraction
 // - Communication with the sidebar
 // - Tab/link context management
 
-console.log('LLM Agent: Content script loaded');
+console.log('Snip: Content script loaded');
 
 // Track current page info
 let currentPageData = {
@@ -52,7 +52,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Initialize when page loads
 window.addEventListener('DOMContentLoaded', () => {
-  console.log('LLM Agent: Page loaded, ready to extract content');
+  console.log('Snip: Page loaded, ready to extract content');
   currentPageData = extractPageContent();
 });
 
@@ -60,7 +60,7 @@ window.addEventListener('DOMContentLoaded', () => {
 let lastUrl = window.location.href;
 const checkForNavigation = () => {
   if (lastUrl !== window.location.href) {
-    console.log('LLM Agent: Navigation detected');
+    console.log('Snip: Navigation detected');
     lastUrl = window.location.href;
     currentPageData = extractPageContent();
   }

@@ -1,7 +1,7 @@
-// Sidebar JavaScript for LLM Agent Chrome Extension
+// Sidebar JavaScript for Snip Chrome Extension
 // Handles UI interactions, context management, and LLM communication
 
-console.log('LLM Agent: Sidebar loaded');
+console.log('Snip: Sidebar loaded');
 
 // State management
 let contexts = []; // Legacy - will be phased out

@@ -1,7 +1,7 @@
-// Background script for LLM Agent Chrome Extension
+// Background script for Snip Chrome Extension
 // Handles extension lifecycle, tab management, and data storage
 
-console.log('LLM Agent: Background script loaded');
+console.log('Snip: Background script loaded');
 
 // Storage for page contexts and visited links
 let pageContexts = new Map();
@@ -9,7 +9,7 @@ let chatHistory = [];
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('LLM Agent: Extension installed');
+  console.log('Snip: Extension installed');
   
   // Set up side panel behavior - this should be enough for icon click
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -17,7 +17,7 @@ chrome.runtime.onInstalled.addListener(() => {
   // Create context menu items
   chrome.contextMenus.create({
     id: 'open-llm-agent',
-    title: 'Open LLM Agent',
+    title: 'Open Snip',
     contexts: ['page', 'selection', 'link']
   });
   

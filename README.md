@@ -1,4 +1,4 @@
-# LLM Agent Chrome Extension
+# Snip ✨ Chrome Extension
 
 An AI assistant that uses your browser tabs and visited pages as context to answer questions and provide data in your requested format.
 
@@ -73,7 +73,7 @@ Sorted by priority:/impact
 **Medium Priority (Features)**
 - [ ] Auto-summarize long webpage content and display in sidebar
 - [ ] Right-click "Add to context" should auto-summarize page into essential points (not full content)
-- [ ] Include journal content as default context for LLM agent
+- [ ] Include journal content as default context for Snip
 - [ ] Add quote text feature in journal with source links (like right-click add to journal)
 - [ ] Todo list functionality in journal with checkable items for task management
 
