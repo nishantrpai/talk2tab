@@ -65,31 +65,67 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     // Only process web pages (not chrome:// pages, extensions, etc.)
     if (tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
       console.log('Processing web page:', tab.url);
-      // Wait a moment for the page to be ready
-      setTimeout(() => {
-        // Send message to content script to get page content
+      
+      // Function to try getting page content with fallback to script injection
+      const getPageContentWithFallback = () => {
+        // First attempt - try to communicate with existing content script
         chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' }, (response) => {
           if (chrome.runtime.lastError) {
-            console.log('Content script not ready yet:', chrome.runtime.lastError.message);
-            // Content script not ready, but don't treat as error
-            return;
-          }
-          
-          if (response) {
-            // Update the current tab context
+            console.log('Content script not available, injecting manually:', chrome.runtime.lastError.message);
+            
+            // Content script not available, inject it manually
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['contentScript.js']
+            }).then(() => {
+              console.log('Content script injected successfully');
+              
+              // Wait a moment for script to initialize, then try again
+              setTimeout(() => {
+                chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' }, (response) => {
+                  if (response && !chrome.runtime.lastError) {
+                    // Success after injection
+                    pageContexts.set('current_tab', response);
+                    console.log('Auto-updated context after injection:', response.url);
+                    
+                    chrome.runtime.sendMessage({ 
+                      type: 'CONTEXT_UPDATED', 
+                      context: response 
+                    }).catch(() => {});
+                  } else {
+                    console.log('Still no response after injection');
+                    chrome.runtime.sendMessage({ 
+                      type: 'CONTEXT_UPDATED', 
+                      context: null 
+                    }).catch(() => {});
+                  }
+                });
+              }, 1000);
+              
+            }).catch((error) => {
+              console.log('Failed to inject content script:', error);
+              chrome.runtime.sendMessage({ 
+                type: 'CONTEXT_UPDATED', 
+                context: null 
+              }).catch(() => {});
+            });
+            
+          } else if (response) {
+            // Success on first try
             pageContexts.set('current_tab', response);
             console.log('Auto-updated context for tab switch:', response.url);
             
-            // Notify sidebar of context update
             chrome.runtime.sendMessage({ 
               type: 'CONTEXT_UPDATED', 
               context: response 
-            }).catch(() => {
-              // Sidebar might not be open, that's ok
-            });
+            }).catch(() => {});
           }
         });
-      }, 500); // Small delay to ensure page is ready
+      };
+      
+      // Wait a moment for page to be ready, then try to get content
+      setTimeout(getPageContentWithFallback, 1000);
+      
     } else {
       console.log('Skipping non-web page:', tab.url);
       
@@ -98,9 +134,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       chrome.runtime.sendMessage({ 
         type: 'CONTEXT_UPDATED', 
         context: null 
-      }).catch(() => {
-        // Sidebar might not be open, that's ok
-      });
+      }).catch(() => {});
     }
   } catch (error) {
     console.error('Error handling tab activation:', error);
@@ -118,24 +152,55 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Check if this is the active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
       if (activeTabs[0] && activeTabs[0].id === tabId) {
-        // This is the active tab, update context
-        setTimeout(() => {
+        // This is the active tab, update context with fallback injection
+        const getPageContentWithFallback = () => {
           chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
-            if (response && !chrome.runtime.lastError) {
-              // Update the current tab context
+            if (chrome.runtime.lastError) {
+              console.log('Content script not available for URL change, injecting...');
+              
+              chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                files: ['contentScript.js']
+              }).then(() => {
+                setTimeout(() => {
+                  chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
+                    if (response && !chrome.runtime.lastError) {
+                      pageContexts.set('current_tab', response);
+                      console.log('Auto-updated context for URL change after injection:', response.url);
+                      
+                      chrome.runtime.sendMessage({ 
+                        type: 'CONTEXT_UPDATED', 
+                        context: response 
+                      }).catch(() => {});
+                    } else {
+                      console.log('No response after injection for URL change');
+                      chrome.runtime.sendMessage({ 
+                        type: 'CONTEXT_UPDATED', 
+                        context: null 
+                      }).catch(() => {});
+                    }
+                  });
+                }, 1000);
+              }).catch(() => {
+                console.log('Failed to inject content script for URL change');
+                chrome.runtime.sendMessage({ 
+                  type: 'CONTEXT_UPDATED', 
+                  context: null 
+                }).catch(() => {});
+              });
+            } else if (response) {
               pageContexts.set('current_tab', response);
               console.log('Auto-updated context for URL change:', response.url);
               
-              // Notify sidebar of context update
               chrome.runtime.sendMessage({ 
                 type: 'CONTEXT_UPDATED', 
                 context: response 
-              }).catch(() => {
-                // Sidebar might not be open, that's ok
-              });
+              }).catch(() => {});
             }
           });
-        }, 1000); // Longer delay for navigation
+        };
+        
+        setTimeout(getPageContentWithFallback, 1500); // Longer delay for navigation
       }
     });
   }
@@ -156,9 +221,26 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       break;
       
     case 'add-page-to-context':
-      // Add current page to context
+      // Add current page to context with fallback injection
       chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' }, (response) => {
-        if (response && !chrome.runtime.lastError) {
+        if (chrome.runtime.lastError) {
+          console.log('Content script not available for context menu, injecting...');
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['contentScript.js']
+          }).then(() => {
+            setTimeout(() => {
+              chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' }, (response) => {
+                if (response && !chrome.runtime.lastError) {
+                  pageContexts.set(response.url, response);
+                  console.log('Added page to context via context menu after injection:', response.url);
+                }
+              });
+            }, 1000);
+          }).catch(() => {
+            console.log('Failed to inject content script for context menu');
+          });
+        } else if (response) {
           pageContexts.set(response.url, response);
           console.log('Added page to context via context menu:', response.url);
         }
@@ -247,14 +329,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
       
     case 'GET_CURRENT_TAB_CONTENT':
-      // Get content from current active tab
+      // Get content from current active tab with fallback injection
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]) {
-          chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' }, (response) => {
-            if (response && !chrome.runtime.lastError) {
-              sendResponse(response);
+        if (tabs[0] && tabs[0].url && (tabs[0].url.startsWith('http://') || tabs[0].url.startsWith('https://'))) {
+          const tabId = tabs[0].id;
+          
+          // Try to get content, fallback to injection if needed
+          chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.log('GET_CURRENT_TAB_CONTENT: Content script not available, injecting...');
+              
+              // Inject content script and try again
+              chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                files: ['contentScript.js']
+              }).then(() => {
+                setTimeout(() => {
+                  chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
+                    sendResponse(response || null);
+                  });
+                }, 1000);
+              }).catch(() => {
+                sendResponse(null);
+              });
             } else {
-              sendResponse(null);
+              sendResponse(response || null);
             }
           });
         } else {

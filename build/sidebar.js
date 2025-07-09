@@ -4,7 +4,9 @@
 console.log('LLM Agent: Sidebar loaded');
 
 // State management
-let contexts = [];
+let contexts = []; // Legacy - will be phased out
+let currentTabContext = null; // Context for currently active tab
+let pinnedContexts = []; // User-pinned contexts that persist
 let chatHistory = [];
 let currentFormat = 'text';
 let isLoading = false;
@@ -60,19 +62,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.type === 'CONTEXT_UPDATED') {
     console.log('Received context update from background:', message.context);
-    console.log('Current contexts before update:', contexts);
+    console.log('Current currentTabContext before update:', currentTabContext);
+    console.log('Current pinnedContexts before update:', pinnedContexts);
     
-    // Clear existing contexts and set the new current tab context
-    contexts = [];
+    // Update current tab context (replaces previous current tab context)
+    currentTabContext = message.context;
     
     if (message.context) {
-      contexts.unshift(message.context); // Add as the primary context
-      console.log('Added new current tab context');
+      console.log('Updated current tab context to:', message.context.url);
     } else {
       console.log('No context available (probably on non-web page)');
     }
     
-    console.log('Contexts after update:', contexts);
+    console.log('currentTabContext after update:', currentTabContext);
+    console.log('pinnedContexts after update:', pinnedContexts);
     
     // Update UI
     updateContextList();
@@ -319,7 +322,7 @@ function addContext(contextData) {
 
 // Clear all context
 function clearContext() {
-  contexts = [];
+  pinnedContexts = []; // Only clear pinned contexts, keep current tab context
   chatHistory = []; // Also clear chat history since context has changed
   updateContextList();
   updateChatMessages();
@@ -543,49 +546,102 @@ function setupContextMenu() {
 
 // Update context list UI
 function updateContextList() {
-  console.log('updateContextList called with contexts:', contexts);
-  console.log('contextCount element:', contextCount);
-  console.log('contextTabs element:', contextTabs);
+  console.log('updateContextList called');
+  console.log('currentTabContext:', currentTabContext);
+  console.log('pinnedContexts:', pinnedContexts);
   
-  contextCount.textContent = contexts.length.toString();
+  const totalContexts = (currentTabContext ? 1 : 0) + pinnedContexts.length;
+  contextCount.textContent = totalContexts.toString();
   
-  if (contexts.length === 0) {
+  if (totalContexts === 0) {
     console.log('No contexts, showing empty message');
     contextTabs.innerHTML = '<div class="context-empty">No context available. Switch to a webpage to see content here.</div>';
     return;
   }
 
-  console.log('Updating context tabs with', contexts.length, 'contexts');
-  contextTabs.innerHTML = contexts.map((ctx, index) => {
-    const isCurrentTab = index === 0; // First context is always current tab
+  console.log('Updating context tabs with', totalContexts, 'total contexts');
+  
+  let contextHtml = '';
+  
+  // Add current tab context (if available)
+  if (currentTabContext) {
+    const hostname = currentTabContext.url ? new URL(currentTabContext.url).hostname : 'Unknown';
+    const title = currentTabContext.title || 'Untitled';
+    
+    console.log('Adding current tab context:', { title, hostname });
+    
+    contextHtml += `
+      <div class="context-tab" onclick="openTab('${currentTabContext.url}')">
+        <div class="context-tab-favicon"></div>
+        <div class="context-tab-info">
+          <div class="context-tab-title">
+            🔵 ${title} <span style="color: #888; font-size: 11px;">(Current Tab)</span>
+          </div>
+          <div class="context-tab-url">${hostname}</div>
+        </div>
+        <button class="context-tab-pin" onclick="event.stopPropagation(); pinCurrentTab()" title="Pin this tab to context">+</button>
+      </div>
+    `;
+  }
+  
+  // Add pinned contexts
+  pinnedContexts.forEach((ctx, index) => {
     const hostname = ctx.url ? new URL(ctx.url).hostname : 'Unknown';
     const title = ctx.title || 'Untitled';
     
-    console.log(`Context ${index}:`, { title, hostname, isCurrentTab });
+    console.log(`Adding pinned context ${index}:`, { title, hostname });
     
-    return `
+    contextHtml += `
       <div class="context-tab" onclick="openTab('${ctx.url}')">
         <div class="context-tab-favicon"></div>
         <div class="context-tab-info">
           <div class="context-tab-title">
-            ${isCurrentTab ? '🔵 ' : ''}${title}
-            ${isCurrentTab ? ' <span style="color: #888; font-size: 11px;">(Current Tab)</span>' : ''}
+            � ${title} <span style="color: #888; font-size: 11px;">(Pinned)</span>
           </div>
           <div class="context-tab-url">${hostname}</div>
         </div>
-        ${isCurrentTab ? '' : `<button class="context-tab-close" onclick="event.stopPropagation(); removeContext(${index})" title="Remove from context">×</button>`}
+        <button class="context-tab-close" onclick="event.stopPropagation(); removePinnedContext(${index})" title="Remove from context">×</button>
       </div>
     `;
-  }).join('');
+  });
   
+  contextTabs.innerHTML = contextHtml;
   console.log('Context tabs HTML updated');
 }
 
 // Remove context item
+// Pin/unpin context functions
+function pinCurrentTab() {
+  if (currentTabContext) {
+    // Check if already pinned
+    const alreadyPinned = pinnedContexts.some(ctx => ctx.url === currentTabContext.url);
+    if (!alreadyPinned) {
+      pinnedContexts.push({ ...currentTabContext });
+      console.log('Pinned current tab:', currentTabContext.url);
+      updateContextList();
+    } else {
+      console.log('Tab already pinned:', currentTabContext.url);
+    }
+  }
+}
+
+function removePinnedContext(index) {
+  if (index >= 0 && index < pinnedContexts.length) {
+    const removed = pinnedContexts.splice(index, 1)[0];
+    console.log('Removed pinned context:', removed.url);
+    updateContextList();
+  }
+}
+
+// Legacy function - kept for compatibility
 function removeContext(index) {
   contexts.splice(index, 1);
   updateContextList();
 }
+
+// Make functions globally available for onclick handlers
+window.pinCurrentTab = pinCurrentTab;
+window.removePinnedContext = removePinnedContext;
 
 // Settings functions
 function openSettings() {
@@ -639,46 +695,23 @@ async function sendMessage() {
   setLoading(true);
 
   try {
-    // Get current active tab content automatically
-    const currentTabContent = await new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: 'GET_CURRENT_TAB_CONTENT' }, (response) => {
-        resolve(response);
-      });
-    });
-
-    // If we didn't get current tab content from the message handler, try direct approach
-    let activeTabContext = currentTabContent;
-    if (!activeTabContext) {
-      activeTabContext = await new Promise((resolve) => {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_CONTENT' }, (response) => {
-              resolve(response);
-            });
-          } else {
-            resolve(null);
-          }
-        });
-      });
-    }
-
-    // Prepare context for LLM - always include current tab first
+    // Prepare context for LLM - use current tab and pinned contexts
     let contextString = '';
     let hasContext = false;
     
     // Add current tab context first (this is what user is referring to by default)
-    if (activeTabContext) {
+    if (currentTabContext) {
       contextString += `CURRENT TAB (what user is referring to by default):\n`;
-      contextString += `URL: ${activeTabContext.url}\n`;
-      contextString += `Title: ${activeTabContext.title}\n`;
-      contextString += `Content: ${activeTabContext.content.slice(0, 3000)}...\n\n`;
+      contextString += `URL: ${currentTabContext.url}\n`;
+      contextString += `Title: ${currentTabContext.title}\n`;
+      contextString += `Content: ${currentTabContext.content.slice(0, 3000)}...\n\n`;
       hasContext = true;
     }
 
-    // Add other contexts if they exist
-    if (contexts.length > 0) {
-      contextString += `ADDITIONAL CONTEXT:\n`;
-      contextString += contexts.map(ctx => 
+    // Add pinned contexts if they exist
+    if (pinnedContexts.length > 0) {
+      contextString += `PINNED TABS:\n`;
+      contextString += pinnedContexts.map(ctx => 
         `URL: ${ctx.url}\nTitle: ${ctx.title}\nContent: ${ctx.content.slice(0, 2000)}...`
       ).join('\n\n---\n\n');
       hasContext = true;
@@ -689,7 +722,7 @@ async function sendMessage() {
       // Add error message to chat indicating no context is available
       chatHistory.push({ 
         role: 'assistant', 
-        content: `I don't have any context from your current tab or other pages. This could happen if:
+        content: `I don't have any context from your current tab or pinned pages. This could happen if:
 
 1. The page is still loading
 2. The page doesn't allow content extraction (like some chrome:// pages)
@@ -697,7 +730,7 @@ async function sendMessage() {
 
 Try:
 - Refreshing the page and asking again
-- Adding context manually using the + button
+- Adding context by pinning tabs using the + button
 - Navigating to a different webpage
 
 You can still ask general questions, but I won't have specific page context to reference.` 
