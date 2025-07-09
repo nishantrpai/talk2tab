@@ -143,25 +143,31 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 // Handle tab updates (when a tab's URL changes, like navigation)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only process when the tab is completely loaded and has a URL change
-  if (changeInfo.status === 'complete' && changeInfo.url && 
+  console.log('Tab updated:', tabId, 'changeInfo:', changeInfo, 'tab URL:', tab.url);
+  
+  // Process when the tab is completely loaded 
+  if (changeInfo.status === 'complete' && tab.url && 
       (tab.url.startsWith('http://') || tab.url.startsWith('https://'))) {
     
-    console.log('Tab updated with new URL:', tab.url);
+    console.log('Tab completed loading with URL:', tab.url);
     
     // Check if this is the active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
       if (activeTabs[0] && activeTabs[0].id === tabId) {
+        console.log('This is the active tab, updating context for navigation to:', tab.url);
+        
         // This is the active tab, update context with fallback injection
         const getPageContentWithFallback = () => {
+          console.log('Attempting to get page content for navigation...');
           chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
             if (chrome.runtime.lastError) {
-              console.log('Content script not available for URL change, injecting...');
+              console.log('Content script not available for URL change, injecting...', chrome.runtime.lastError.message);
               
               chrome.scripting.executeScript({
                 target: { tabId: tabId },
                 files: ['contentScript.js']
               }).then(() => {
+                console.log('Content script injected for navigation');
                 setTimeout(() => {
                   chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_CONTENT' }, (response) => {
                     if (response && !chrome.runtime.lastError) {
@@ -180,9 +186,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                       }).catch(() => {});
                     }
                   });
-                }, 1000);
-              }).catch(() => {
-                console.log('Failed to inject content script for URL change');
+                }, 1500); // Longer wait after injection for navigation
+              }).catch((error) => {
+                console.log('Failed to inject content script for URL change:', error);
                 chrome.runtime.sendMessage({ 
                   type: 'CONTEXT_UPDATED', 
                   context: null 
@@ -196,11 +202,34 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 type: 'CONTEXT_UPDATED', 
                 context: response 
               }).catch(() => {});
+            } else {
+              console.log('No response from content script for URL change');
+              chrome.runtime.sendMessage({ 
+                type: 'CONTEXT_UPDATED', 
+                context: null 
+              }).catch(() => {});
             }
           });
         };
         
-        setTimeout(getPageContentWithFallback, 1500); // Longer delay for navigation
+        // Wait longer for navigation to complete fully
+        setTimeout(getPageContentWithFallback, 2000);
+      } else {
+        console.log('Not the active tab, ignoring URL change for tab:', tabId);
+      }
+    });
+  } else if (changeInfo.status === 'complete' && tab.url && 
+             (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || 
+              tab.url.startsWith('edge://') || tab.url.startsWith('about:'))) {
+    // Handle non-web pages for active tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
+      if (activeTabs[0] && activeTabs[0].id === tabId) {
+        console.log('Active tab navigated to non-web page:', tab.url);
+        pageContexts.delete('current_tab');
+        chrome.runtime.sendMessage({ 
+          type: 'CONTEXT_UPDATED', 
+          context: null 
+        }).catch(() => {});
       }
     });
   }
