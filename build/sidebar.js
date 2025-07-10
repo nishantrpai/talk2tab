@@ -795,8 +795,17 @@ function removeContext(index) {
 }
 
 // Make functions globally available for onclick handlers
-window.pinCurrentTab = pinCurrentTab;
-window.removePinnedContext = removePinnedContext;
+window.removeContext = removeContext;
+window.openTab = openTab;
+window.showJournalMessageMenu = showJournalMessageMenu;
+window.closeJournalMessageMenu = closeJournalMessageMenu;
+window.addJournalMessageToChat = addJournalMessageToChat;
+window.deleteJournalMessage = deleteJournalMessage;
+window.clearJournal = clearJournal;
+window.closeJournalHeaderMenu = closeJournalHeaderMenu;
+window.searchJournal = searchJournal;
+window.renderJournalMessages = renderJournalMessages;
+window.exitSearchMode = exitSearchMode;
 
 // Settings functions
 function openSettings() {
@@ -1574,11 +1583,31 @@ function showJournalHeaderMenu(event) {
   menu.className = 'journal-header-dropdown';
   
   menu.innerHTML = `
+    <button onclick="searchJournal(); closeJournalHeaderMenu();" class="search-journal-btn">
+      <i data-feather="search" style="width: 12px; height: 12px;"></i>
+      Search Journal
+    </button>
     <button onclick="clearJournal(); closeJournalHeaderMenu();" class="danger">
       <i data-feather="trash-2" style="width: 12px; height: 12px;"></i>
       Clear Journal
     </button>
   `;
+
+  // register event listener for search journal
+  const searchBtn = menu.querySelector('.search-journal-btn');
+  searchBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    searchJournal();
+    closeJournalHeaderMenu();
+  });
+
+  // register event listener for clear journal
+  const clearBtn = menu.querySelector('.danger');
+  clearBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    clearJournal();
+    closeJournalHeaderMenu();
+  });
   
   // Position the menu relative to the journal header
   const journalHeader = event.target.closest('.journal-header');
@@ -1610,12 +1639,216 @@ function closeJournalHeaderMenu() {
   }
 }
 
-// Global functions for inline event handlers
-window.removeContext = removeContext;
-window.openTab = openTab;
-window.showJournalMessageMenu = showJournalMessageMenu;
-window.closeJournalMessageMenu = closeJournalMessageMenu;
-window.addJournalMessageToChat = addJournalMessageToChat;
-window.deleteJournalMessage = deleteJournalMessage;
-window.clearJournal = clearJournal;
-window.closeJournalHeaderMenu = closeJournalHeaderMenu;
+// Search journal functionality
+function searchJournal() {
+  const journalHeader = document.querySelector('.journal-header');
+  if (!journalHeader) return;
+  
+  // Create search header
+  const searchHeader = document.createElement('div');
+  searchHeader.className = 'journal-search-header-input';
+  searchHeader.innerHTML = `
+    <div class="journal-search-input-wrapper">
+      <input type="text" 
+             class="journal-search-input" 
+             placeholder="Search journal entries..." 
+             autocomplete="off"
+             spellcheck="false">
+      <button class="journal-search-close-btn" onclick="exitSearchMode()">
+        <i data-feather="x"></i>
+      </button>
+    </div>
+  `;
+  
+  // Replace header with search input
+  journalHeader.style.display = 'none';
+  journalHeader.parentNode.insertBefore(searchHeader, journalHeader);
+  
+  // Focus the input
+  const searchInput = searchHeader.querySelector('.journal-search-input');
+  searchInput.focus();
+  
+  // Add real-time search functionality
+  searchInput.addEventListener('input', (e) => {
+    const searchTerm = e.target.value.trim();
+    if (searchTerm === '') {
+      renderJournalMessages();
+    } else {
+      performJournalSearch(searchTerm);
+    }
+  });
+  
+  // Handle escape key to exit search
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      exitSearchMode();
+    }
+  });
+  
+  // Initialize Feather icons for the close button
+  feather.replace();
+}
+
+// Exit search mode and return to normal journal view
+function exitSearchMode() {
+  const searchHeader = document.querySelector('.journal-search-header-input');
+  const journalHeader = document.querySelector('.journal-header');
+  
+  if (searchHeader) {
+    searchHeader.remove();
+  }
+  
+  if (journalHeader) {
+    journalHeader.style.display = 'flex';
+  }
+  
+  // Show all messages
+  renderJournalMessages();
+}
+
+// Perform the actual search
+function performJournalSearch(searchTerm) {
+  const term = searchTerm.toLowerCase();
+  
+  // Filter messages that contain the search term
+  const filteredMessages = journalMessages.filter(message => 
+    message.content.toLowerCase().includes(term) ||
+    (message.sourceTitle && message.sourceTitle.toLowerCase().includes(term)) ||
+    (message.sourceUrl && message.sourceUrl.toLowerCase().includes(term))
+  );
+  
+  // Render filtered messages
+  renderFilteredJournalMessages(filteredMessages, term);
+}
+
+// Render filtered journal messages with search term highlighted
+function renderFilteredJournalMessages(filteredMessages, searchTerm) {
+  const container = journalContainer;
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  if (filteredMessages.length === 0) {
+    container.innerHTML = `
+      <div class="journal-search-info">
+        No results found for "${searchTerm}"
+      </div>
+      <div class="journal-empty">No matching entries found.</div>
+    `;
+    return;
+  }
+  
+  // Add search results info
+  container.innerHTML = `
+    <div class="journal-search-info">
+      Found ${filteredMessages.length} result${filteredMessages.length === 1 ? '' : 's'} for "${searchTerm}"
+    </div>
+  `;
+  
+  // Group filtered messages by date
+  const messagesByDate = {};
+  filteredMessages.forEach(message => {
+    const date = new Date(message.timestamp).toDateString();
+    if (!messagesByDate[date]) {
+      messagesByDate[date] = [];
+    }
+    messagesByDate[date].push(message);
+  });
+
+  // Sort dates in ascending order (oldest first)
+  const sortedDates = Object.keys(messagesByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  sortedDates.forEach(dateStr => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    
+    // Create date header
+    const dateHeader = document.createElement('div');
+    dateHeader.className = 'journal-date-header';
+    
+    let dateLabel;
+    if (date.toDateString() === today.toDateString()) {
+      dateLabel = 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      dateLabel = 'Yesterday';
+    } else {
+      dateLabel = date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
+    
+    dateHeader.textContent = dateLabel;
+    container.appendChild(dateHeader);
+    
+    // Add messages for this date
+    messagesByDate[dateStr].forEach(message => {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `journal-message ${message.type}`;
+      
+      const timestamp = new Date(message.timestamp).toLocaleString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      
+      // Highlight search term in content
+      const highlightedContent = highlightSearchTerm(message.content, searchTerm);
+      const highlightedTitle = message.sourceTitle ? highlightSearchTerm(message.sourceTitle, searchTerm) : message.sourceTitle;
+      
+      if (message.type === 'quote') {
+        messageDiv.innerHTML = `
+          <div class="journal-message-content">${highlightedContent}</div>
+          <div class="journal-quote-source">
+            <a href="${message.sourceUrl}" target="_blank">${highlightedTitle || 'Source'}</a>
+          </div>
+          <div class="journal-message-time">${timestamp}</div>
+          <div class="journal-message-menu" data-message-id="${message.id}">
+            <i data-feather="more-horizontal"></i>
+          </div>
+        `;
+      } else if (message.type === 'question') {
+        messageDiv.innerHTML = `
+          <div class="journal-message-content">${highlightedContent}</div>
+          <div class="journal-quote-source">
+            <a href="${message.sourceUrl}" target="_blank">${highlightedTitle}</a>
+          </div>
+          <div class="journal-message-time">${timestamp}</div>
+          <div class="journal-message-menu" data-message-id="${message.id}">
+            <i data-feather="more-horizontal"></i>
+          </div>
+        `;
+      } else {
+        messageDiv.innerHTML = `
+          <div class="journal-message-content">${highlightedContent}</div>
+          <div class="journal-message-time">${timestamp}</div>
+          <div class="journal-message-menu" data-message-id="${message.id}">
+            <i data-feather="more-horizontal"></i>
+          </div>
+        `;
+      }
+      
+      container.appendChild(messageDiv);
+    });
+  });
+  
+  // Scroll to top to show search results
+  container.scrollTop = 0;
+  
+  // Re-render Feather icons
+  if (window.feather) {
+    window.feather.replace();
+  }
+}
+
+// Helper function to highlight search terms
+function highlightSearchTerm(text, searchTerm) {
+  if (!text || !searchTerm) return text;
+  
+  const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return text.replace(regex, '<mark style="background: #ffd700; color: #000; padding: 1px 2px; border-radius: 2px;">$1</mark>');
+}
