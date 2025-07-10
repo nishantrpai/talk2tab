@@ -27,6 +27,7 @@ const contextTabs = document.getElementById('contextTabs');
 const contextCount = document.getElementById('contextCount');
 const contextCollapseBtn = document.getElementById('contextCollapseBtn');
 const addContextBtn = document.getElementById('addContextBtn');
+const addJournalContextBtn = document.getElementById('addJournalContextBtn');
 const clearContextBtn = document.getElementById('clearContextBtn');
 const chatMessages = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput');
@@ -313,6 +314,7 @@ function setupEventListeners() {
 
   // Context buttons
   addContextBtn.addEventListener('click', showContextMenu);
+  addJournalContextBtn.addEventListener('click', addJournalToContext);
   clearContextBtn.addEventListener('click', clearContext);
   
   // Context collapse toggle
@@ -703,22 +705,29 @@ function updateContextList() {
   
   // Add pinned contexts
   pinnedContexts.forEach((ctx, index) => {
-    const hostname = ctx.url ? new URL(ctx.url).hostname : 'Unknown';
+    const isJournalContext = ctx.id === 'journal-context';
+    const hostname = ctx.url ? (isJournalContext ? 'Journal' : new URL(ctx.url).hostname) : 'Unknown';
     const title = ctx.title || 'Untitled';
-    const favicon = ctx.favicon || 'https://www.google.com/s2/favicons?domain=' + hostname;
+    const favicon = ctx.favicon || (isJournalContext ? 
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23737373"><path d="M4 6h2v2H4zm0 5h2v2H4zm0 5h2v2H4zm16-8V6H8.023v2zm0 5V11H8.023v2zm0 5v-2H8.023v2z"/></svg>' :
+      'https://www.google.com/s2/favicons?domain=' + hostname);
     
-    console.log(`Adding pinned context ${index}:`, { title, hostname });
+    console.log(`Adding pinned context ${index}:`, { title, hostname, isJournal: isJournalContext });
     
     const sanitizedTitle = title.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/<[^>]*>/g, '').substring(0, 50);
     const contentSize = ctx.content ? `${(ctx.content.length / 1024).toFixed(1)}kb` : '0kb';
-    // Use sanitized title to prevent XSS
+    
+    // Special handling for journal context - no onclick for opening tab
+    const onclickAttr = isJournalContext ? '' : `onclick="openTab('${ctx.url}')"`;
+    const contextLabel = isJournalContext ? '(Journal)' : '(Pinned)';
     
     contextHtml += `
-      <div class="context-tab" onclick="openTab('${ctx.url}')">
-        <div class="context-tab-favicon" style="background-image: url('${favicon}');"></div>
+      <div class="context-tab" ${onclickAttr}>
+        ${isJournalContext ? `<i data-feather="book-open" style="width: 12px; height: 12px; margin-right: 4px;"></i>` :
+          `<div class="context-tab-favicon" style="background-image: url('${favicon}');"></div>`}
         <div class="context-tab-info">
           <div class="context-tab-title">
-            ${title} <span style="color: #888; font-size: 11px;">(Pinned)</span>
+            ${sanitizedTitle} <span style="color: #888; font-size: 11px;">${contextLabel}</span>
           </div>
           <div class="context-tab-url">${hostname} • ${contentSize}</div>
         </div>
@@ -1851,4 +1860,94 @@ function highlightSearchTerm(text, searchTerm) {
   
   const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   return text.replace(regex, '<mark style="background: #ffd700; color: #000; padding: 1px 2px; border-radius: 2px;">$1</mark>');
+}
+
+// Add journal entries to context
+function addJournalToContext() {
+  // Check if journal has entries
+  if (!journalMessages || journalMessages.length === 0) {
+    // Show a brief notification
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #262626;
+      color: #e5e5e5;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      z-index: 1001;
+      border: 1px solid #404040;
+    `;
+    notification.textContent = 'No journal entries to add';
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.remove();
+    }, 2000);
+    return;
+  }
+
+  // Create a summary of journal entries to add as context
+  const journalContext = {
+    id: 'journal-context',
+    title: `Journal (${journalMessages.length} entries)`,
+    url: 'internal://journal',
+    content: journalMessages.map(msg => {
+      const date = new Date(msg.timestamp).toLocaleDateString();
+      const content = msg.content;
+      const type = msg.type || 'note';
+      
+      let contextEntry = `[${date}] ${content}`;
+      
+      // Add source info for quotes and questions
+      if (msg.sourceTitle && msg.sourceUrl) {
+        contextEntry += `\nSource: ${msg.sourceTitle} (${msg.sourceUrl})`;
+      }
+      
+      return contextEntry;
+    }).join('\n\n'),
+    favicon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23737373"><path d="M4 6h2v2H4zm0 5h2v2H4zm0 5h2v2H4zm16-8V6H8.023v2zm0 5V11H8.023v2zm0 5v-2H8.023v2z"/></svg>',
+    size: `${journalMessages.length} entries`
+  };
+
+  // Add to pinned contexts instead of legacy contexts array
+  const existingIndex = pinnedContexts.findIndex(ctx => ctx.id === 'journal-context');
+  if (existingIndex >= 0) {
+    // Update existing journal context
+    pinnedContexts[existingIndex] = journalContext;
+  } else {
+    // Add new journal context to pinned contexts
+    pinnedContexts.push(journalContext);
+  }
+
+  // Save to storage
+  chrome.storage.local.set({ pinnedContexts: pinnedContexts }, () => {
+    console.log('Saved journal context to pinned contexts');
+  });
+
+  // Update the display
+  updateContextList();
+  
+  // Show success notification
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #2563eb;
+    color: white;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 1001;
+    border: 1px solid #3b82f6;
+  `;
+  notification.textContent = `Added ${journalMessages.length} journal entries to context`;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.remove();
+  }, 2000);
 }
