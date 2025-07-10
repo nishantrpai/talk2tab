@@ -1539,10 +1539,16 @@ function closeJournalMessageMenu() {
   }
 }
 
-// Close menu on escape key
+// Close menu on escape key and handle Ctrl+J for adding to journal
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeJournalMessageMenu();
+  }
+  
+  // Ctrl+J to add selected text to journal
+  if (e.ctrlKey && e.key === 'j') {
+    e.preventDefault();
+    addSelectionToJournal();
   }
 });
 
@@ -1663,7 +1669,7 @@ function searchJournal() {
              placeholder="Search journal entries..." 
              autocomplete="off"
              spellcheck="false">
-      <button class="journal-search-close-btn" onclick="exitSearchMode()">
+      <button class="journal-search-close-btn">
         <i data-feather="x"></i>
       </button>
     </div>
@@ -1675,6 +1681,13 @@ function searchJournal() {
   
   // Focus the input
   const searchInput = searchHeader.querySelector('.journal-search-input');
+  const closeBtn = searchHeader.querySelector('.journal-search-close-btn');
+  searchInput.focus();
+  
+  // Add close button event listener
+  closeBtn.addEventListener('click', () => {
+    exitSearchMode();
+  });
   searchInput.focus();
   
   // Add real-time search functionality
@@ -1950,4 +1963,84 @@ function addJournalToContext() {
   setTimeout(() => {
     notification.remove();
   }, 2000);
+}
+
+// Add selected text to journal using Ctrl+J shortcut
+function addSelectionToJournal() {
+  // Get the selected text from the page
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) {
+    // Show a brief notification if no text is selected
+    showNotification('No text selected. Please select some text and try again.', 'warning');
+    return;
+  }
+  
+  const selectedText = selection.toString().trim();
+  if (!selectedText) {
+    showNotification('No text selected. Please select some text and try again.', 'warning');
+    return;
+  }
+  
+  // Get the current page info
+  let sourceUrl = window.location.href;
+  let sourceTitle = document.title;
+  
+  // Try to get info from current tab context if available
+  if (currentTabContext) {
+    sourceUrl = currentTabContext.url || sourceUrl;
+    sourceTitle = currentTabContext.title || sourceTitle;
+  }
+  
+  // Create journal entry
+  const journalEntry = {
+    id: Date.now(),
+    type: 'quote',
+    content: selectedText,
+    sourceUrl: sourceUrl,
+    sourceTitle: sourceTitle,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Add to journal
+  journalMessages.push(journalEntry);
+  saveJournal();
+  
+  // Show success notification
+  showNotification(`Added "${selectedText.substring(0, 50)}${selectedText.length > 50 ? '...' : ''}" to journal`, 'success');
+  
+  // Clear selection
+  selection.removeAllRanges();
+  
+  // If we're on the journal tab, update the display
+  if (currentTab === 'journal') {
+    renderJournalMessages();
+  }
+}
+
+// Show notification helper function
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  const bgColor = type === 'success' ? '#2563eb' : type === 'warning' ? '#f59e0b' : '#262626';
+  const textColor = type === 'warning' ? '#000' : '#fff';
+  
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: ${bgColor};
+    color: ${textColor};
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 1001;
+    border: 1px solid ${type === 'success' ? '#3b82f6' : type === 'warning' ? '#fbbf24' : '#404040'};
+    max-width: 300px;
+    word-wrap: break-word;
+  `;
+  notification.textContent = message;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
 }

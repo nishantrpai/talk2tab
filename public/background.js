@@ -421,6 +421,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // Get chat history
       sendResponse({ history: chatHistory });
       break;
+      
+    case 'ADD_TO_JOURNAL':
+      // Add entry to journal from content script
+      if (request.entry) {
+        // Get existing journal messages
+        chrome.storage.local.get(['journalMessages'], (result) => {
+          const journalMessages = result.journalMessages || [];
+          
+          // Create the journal entry
+          const journalEntry = {
+            id: Date.now(),
+            type: 'quote',
+            content: request.entry.content,
+            sourceUrl: request.entry.sourceUrl,
+            sourceTitle: request.entry.sourceTitle,
+            timestamp: request.entry.timestamp
+          };
+          
+          // Add to journal
+          journalMessages.push(journalEntry);
+          
+          // Save back to storage
+          chrome.storage.local.set({ journalMessages: journalMessages }, () => {
+            console.log('Added entry to journal via keyboard shortcut:', journalEntry.content.substring(0, 50) + '...');
+            sendResponse({ success: true });
+          });
+        });
+        return true; // Keep message channel open for async response
+      }
+      break;
   }
 });
 

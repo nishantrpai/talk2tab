@@ -24,6 +24,15 @@
     "http://*/*",
     "https://*/*"
   ],
+  "commands": {
+    "add-to-journal": {
+      "suggested_key": {
+        "default": "Ctrl+J",
+        "mac": "Command+J"
+      },
+      "description": "Add selected text to journal"
+    }
+  },
   "content_scripts": [
     {
       "matches": [

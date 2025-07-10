@@ -143,6 +143,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const pageData = extractPageContent();
     sendPageData(pageData);
     sendResponse({ success: true });
+  } else if (request.type === 'TRIGGER_ADD_TO_JOURNAL') {
+    // Handle the keyboard shortcut command from background script
+    handleAddToJournalShortcut();
+    sendResponse({ success: true });
   }
 });
 
@@ -164,6 +168,104 @@ const checkForNavigation = () => {
 
 // Check for navigation changes periodically
 setInterval(checkForNavigation, 1000);
+
+// Handle keyboard shortcuts for adding selected text to journal
+document.addEventListener('keydown', (e) => {
+  // Ctrl+J to add selected text to journal
+  if (e.ctrlKey && e.key === 'j') {
+    e.preventDefault();
+    
+    // Get the selected text
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      return;
+    }
+    
+    const selectedText = selection.toString().trim();
+    if (!selectedText) {
+      return;
+    }
+    
+    // Create journal entry data
+    const journalEntry = {
+      content: selectedText,
+      sourceUrl: window.location.href,
+      sourceTitle: document.title,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Send to background script to save to journal
+    chrome.runtime.sendMessage({
+      type: 'ADD_TO_JOURNAL',
+      entry: journalEntry
+    });
+    
+    // Clear selection
+    selection.removeAllRanges();
+    
+    // Show a brief visual feedback
+    showSelectionFeedback();
+  }
+});
+
+// Handle add to journal keyboard shortcut triggered from background script
+function handleAddToJournalShortcut() {
+  // Get the selected text
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) {
+    return;
+  }
+  
+  const selectedText = selection.toString().trim();
+  if (!selectedText) {
+    return;
+  }
+  
+  // Create journal entry data
+  const journalEntry = {
+    content: selectedText,
+    sourceUrl: window.location.href,
+    sourceTitle: document.title,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Send to background script to save to journal
+  chrome.runtime.sendMessage({
+    type: 'ADD_TO_JOURNAL',
+    entry: journalEntry
+  });
+  
+  // Clear selection
+  selection.removeAllRanges();
+  
+  // Show a brief visual feedback
+  showSelectionFeedback();
+}
+
+// Show visual feedback when text is added to journal
+function showSelectionFeedback() {
+  const feedback = document.createElement('div');
+  feedback.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #2563eb;
+    color: white;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    z-index: 10000;
+    border: 1px solid #3b82f6;
+    font-family: system-ui, -apple-system, sans-serif;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  `;
+  feedback.textContent = '✓ Added to Journal';
+  document.body.appendChild(feedback);
+  
+  setTimeout(() => {
+    feedback.remove();
+  }, 2000);
+}
 /******/ })()
 ;
 //# sourceMappingURL=contentScript.js.map

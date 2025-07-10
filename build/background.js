@@ -421,6 +421,67 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // Get chat history
       sendResponse({ history: chatHistory });
       break;
+      
+    case 'ADD_TO_JOURNAL':
+      // Add entry to journal from content script
+      if (request.entry) {
+        // Get existing journal messages
+        chrome.storage.local.get(['journalMessages'], (result) => {
+          const journalMessages = result.journalMessages || [];
+          
+          // Create the journal entry
+          const journalEntry = {
+            id: Date.now(),
+            type: 'quote',
+            content: request.entry.content,
+            sourceUrl: request.entry.sourceUrl,
+            sourceTitle: request.entry.sourceTitle,
+            timestamp: request.entry.timestamp
+          };
+          
+          // Add to journal
+          journalMessages.push(journalEntry);
+          
+          // Save back to storage
+          chrome.storage.local.set({ journalMessages: journalMessages }, () => {
+            console.log('Added entry to journal via keyboard shortcut:', journalEntry.content.substring(0, 50) + '...');
+            
+            // Notify sidebar about the new journal entry
+            chrome.runtime.sendMessage({
+              type: 'JOURNAL_ENTRY_ADDED',
+              entry: journalEntry
+            }).catch(() => {
+              // Sidebar might not be open, which is fine
+              console.log('Sidebar not available to notify about journal entry');
+            });
+            
+            sendResponse({ success: true });
+          });
+        });
+        return true; // Keep message channel open for async response
+      }
+      break;
+  }
+});
+
+// Handle keyboard commands
+chrome.commands.onCommand.addListener((command) => {
+  console.log('Command received:', command);
+  
+  if (command === 'add-to-journal') {
+    // Get the current active tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].url && (tabs[0].url.startsWith('http://') || tabs[0].url.startsWith('https://'))) {
+        // Send message to content script to handle the selection
+        chrome.tabs.sendMessage(tabs[0].id, { 
+          type: 'TRIGGER_ADD_TO_JOURNAL' 
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.log('Could not send message to content script:', chrome.runtime.lastError.message);
+          }
+        });
+      }
+    });
   }
 });
 
