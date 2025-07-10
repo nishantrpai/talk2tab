@@ -12,6 +12,11 @@
             box-sizing: border-box;
         }
 
+        svg {
+          width: 12px;
+          height: 12px;
+        }
+
         body {
             font-family: system-ui, -apple-system, sans-serif;
             background: #0a0a0a;
@@ -40,18 +45,13 @@
         .settings-btn {
             background: none;
             border: none;
-            color: #a3a3a3;
+            color: #fff;
             font-size: 16px;
             cursor: pointer;
-            padding: 4px;
             border-radius: 4px;
             transition: all 0.2s;
         }
 
-        .settings-btn:hover {
-            background: #262626;
-            color: #e5e5e5;
-        }
 
         .context-section {
             padding: 16px;
@@ -1101,7 +1101,7 @@
 <body>
     <div class="header">
         <h1>Snip ✨</h1>
-        <button class="btn settings-btn" id="settingsBtn">
+        <button class="settings-btn" id="settingsBtn">
             <i data-feather="settings"></i>
         </button>
     </div>

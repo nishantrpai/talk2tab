@@ -685,7 +685,7 @@ function updateContextList() {
     
     console.log('Adding current tab context:', { title, hostname });
     
-    // replace unicodes and links from title, limit title length to 50 chars
+    // replace unicodes and links from title, limit title to 50 chars
     const sanitizedTitle = title.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/<[^>]*>/g, '').substring(0, 50);
     const contentSize = currentTabContext.content ? `${(currentTabContext.content.length / 1024).toFixed(1)}kb` : '0kb';
 
@@ -811,6 +811,7 @@ window.closeJournalMessageMenu = closeJournalMessageMenu;
 window.addJournalMessageToChat = addJournalMessageToChat;
 window.deleteJournalMessage = deleteJournalMessage;
 window.clearJournal = clearJournal;
+window.downloadJournal = downloadJournal;
 window.closeJournalHeaderMenu = closeJournalHeaderMenu;
 window.searchJournal = searchJournal;
 window.renderJournalMessages = renderJournalMessages;
@@ -1602,17 +1603,30 @@ function showJournalHeaderMenu(event) {
       <i data-feather="search" style="width: 12px; height: 12px;"></i>
       Search Journal
     </button>
+    <button onclick="downloadJournal(); closeJournalHeaderMenu();">
+      <i data-feather="download" style="width: 12px; height: 12px;"></i>
+      Download Journal
+    </button>
     <button onclick="clearJournal(); closeJournalHeaderMenu();" class="danger">
       <i data-feather="trash-2" style="width: 12px; height: 12px;"></i>
       Clear Journal
     </button>
   `;
+  
 
   // register event listener for search journal
   const searchBtn = menu.querySelector('.search-journal-btn');
   searchBtn?.addEventListener('click', (e) => {
     e.preventDefault();
     searchJournal();
+    closeJournalHeaderMenu();
+  });
+
+  // register event listener for download journal
+  const downloadBtn = menu.querySelector('button:not(.search-journal-btn)');
+  downloadBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    downloadJournal();
     closeJournalHeaderMenu();
   });
 
@@ -2043,4 +2057,81 @@ function showNotification(message, type = 'info') {
   setTimeout(() => {
     notification.remove();
   }, 3000);
+}
+
+// Download journal as a file
+function downloadJournal() {
+  if (!journalMessages || journalMessages.length === 0) {
+    showNotification('No journal entries to download', 'warning');
+    return;
+  }
+
+  // Create formatted content for download
+  let content = 'Snip Journal Export\n';
+  content += '==================\n\n';
+  content += `Exported on: ${new Date().toLocaleString()}\n`;
+  content += `Total entries: ${journalMessages.length}\n\n`;
+
+  // Group messages by date
+  const messagesByDate = {};
+  journalMessages.forEach(message => {
+    const date = new Date(message.timestamp).toDateString();
+    if (!messagesByDate[date]) {
+      messagesByDate[date] = [];
+    }
+    messagesByDate[date].push(message);
+  });
+
+  // Sort dates in ascending order (oldest first)
+  const sortedDates = Object.keys(messagesByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  sortedDates.forEach(dateStr => {
+    const date = new Date(dateStr);
+    content += `\n${date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })}\n`;
+    content += '='.repeat(50) + '\n\n';
+
+    messagesByDate[dateStr].forEach(message => {
+      const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      content += `[${time}] `;
+      
+      if (message.type === 'quote') {
+        content += `"${message.content}"\n`;
+        if (message.sourceTitle && message.sourceUrl) {
+          content += `Source: ${message.sourceTitle} (${message.sourceUrl})\n`;
+        }
+      } else if (message.type === 'question') {
+        content += `Q: ${message.content}\n`;
+        if (message.sourceTitle && message.sourceUrl) {
+          content += `Context: ${message.sourceTitle} (${message.sourceUrl})\n`;
+        }
+      } else {
+        content += `${message.content}\n`;
+      }
+      content += '\n';
+    });
+  });
+
+  // Create and download file
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `snip-journal-${new Date().toISOString().split('T')[0]}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showNotification(`Downloaded journal with ${journalMessages.length} entries`, 'success');
 }
