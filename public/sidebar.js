@@ -355,13 +355,6 @@ function setupEventListeners() {
     }
   });
   
-  // Close modal when clicking overlay
-  settingsModal.addEventListener('click', (e) => {
-    if (e.target === settingsModal) {
-      closeSettings();
-    }
-  });
-  
   // Journal context menu
   setupContextMenu();
 }
@@ -821,10 +814,22 @@ window.exitSearchMode = exitSearchMode;
 function openSettings() {
   updateSettingsUI();
   settingsModal.classList.add('active');
+  
+  // Add keyboard listener for Escape key
+  document.addEventListener('keydown', handleSettingsKeydown);
 }
 
 function closeSettings() {
   settingsModal.classList.remove('active');
+  
+  // Remove keyboard listener
+  document.removeEventListener('keydown', handleSettingsKeydown);
+}
+
+function handleSettingsKeydown(e) {
+  if (e.key === 'Escape') {
+    closeSettings();
+  }
 }
 
 function updateSettingsUI() {

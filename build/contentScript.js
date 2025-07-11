@@ -80,8 +80,8 @@ const extractPageContent = () => {
     const targetElement = mainElement || document.body;
     
     if (targetElement) {
-      // Get the full innerHTML to preserve structure and links
-      content = targetElement.innerHTML || '';
+      // Get the full innerText to preserve structure and links
+      content = targetElement.innerText || '';
       
       // Also include text content as fallback
       if (!content) {
@@ -143,10 +143,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const pageData = extractPageContent();
     sendPageData(pageData);
     sendResponse({ success: true });
-  } else if (request.type === 'TRIGGER_ADD_TO_JOURNAL') {
-    // Handle the keyboard shortcut command from background script
-    handleAddToJournalShortcut();
-    sendResponse({ success: true });
   }
 });
 
@@ -207,40 +203,6 @@ document.addEventListener('keydown', (e) => {
     showSelectionFeedback();
   }
 });
-
-// Handle add to journal keyboard shortcut triggered from background script
-function handleAddToJournalShortcut() {
-  // Get the selected text
-  const selection = window.getSelection();
-  if (!selection || selection.isCollapsed) {
-    return;
-  }
-  
-  const selectedText = selection.toString().trim();
-  if (!selectedText) {
-    return;
-  }
-  
-  // Create journal entry data
-  const journalEntry = {
-    content: selectedText,
-    sourceUrl: window.location.href,
-    sourceTitle: document.title,
-    timestamp: new Date().toISOString()
-  };
-  
-  // Send to background script to save to journal
-  chrome.runtime.sendMessage({
-    type: 'ADD_TO_JOURNAL',
-    entry: journalEntry
-  });
-  
-  // Clear selection
-  selection.removeAllRanges();
-  
-  // Show a brief visual feedback
-  showSelectionFeedback();
-}
 
 // Show visual feedback when text is added to journal
 function showSelectionFeedback() {

@@ -194,6 +194,8 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            overflow: scroll;
+            padding-bottom: 120px;
         }
 
         .message {
@@ -371,10 +373,10 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: #0a0a0a;
             display: none;
-            align-items: center;
-            justify-content: center;
+            align-items: stretch;
+            justify-content: stretch;
             z-index: 1000;
         }
 
@@ -383,26 +385,31 @@
         }
 
         .modal {
-            background: #171717;
-            border: 1px solid #262626;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 400px;
-            max-height: 80vh;
+            background: #0a0a0a;
+            border: none;
+            border-radius: 0;
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            box-shadow: none;
+            display: flex;
+            flex-direction: column;
         }
 
         .modal-header {
-            padding: 16px;
+            padding: 16px 20px;
             border-bottom: 1px solid #262626;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: #111111;
+            flex-shrink: 0;
         }
 
         .modal-header h2 {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 600;
             color: #f5f5f5;
             margin: 0;
@@ -412,11 +419,16 @@
             background: none;
             border: none;
             color: #a3a3a3;
-            font-size: 20px;
+            font-size: 24px;
             cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
+            padding: 8px;
+            border-radius: 6px;
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            height: 40px;
         }
 
         .modal-close:hover {
@@ -425,62 +437,84 @@
         }
 
         .modal-content {
-            padding: 16px;
-            max-height: 60vh;
+            padding: 24px 20px;
+            flex: 1;
             overflow-y: auto;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .setting-group {
-            margin-bottom: 16px;
+            margin-bottom: 24px;
         }
 
         .setting-group label {
             display: block;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 500;
-            color: #d4d4d4;
-            margin-bottom: 4px;
+            color: #f5f5f5;
+            margin-bottom: 8px;
         }
 
         .setting-input {
             width: 100%;
-            background: #0a0a0a;
+            background: #171717;
             border: 1px solid #262626;
-            border-radius: 4px;
-            padding: 8px;
+            border-radius: 6px;
+            padding: 12px 16px;
             color: #e5e5e5;
-            font-size: 12px;
+            font-size: 14px;
             font-family: inherit;
+            transition: border-color 0.2s;
         }
 
         .setting-input:focus {
             outline: none;
-            border-color: #404040;
+            border-color: #2563eb;
         }
 
         .setting-textarea {
-            min-height: 60px;
+            min-height: 80px;
             resize: vertical;
             font-family: inherit;
+            line-height: 1.5;
         }
 
         .setting-help {
             display: block;
-            font-size: 10px;
+            font-size: 12px;
             color: #737373;
-            margin-top: 4px;
+            margin-top: 6px;
+            line-height: 1.4;
         }
 
         .modal-footer {
-            padding: 16px;
+            padding: 20px;
             border-top: 1px solid #262626;
             display: flex;
             justify-content: flex-end;
-            gap: 8px;
+            gap: 12px;
+            background: #111111;
+            flex-shrink: 0;
+        }
+
+        .modal-footer .btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            min-width: 100px;
         }
 
         input[type="checkbox"] {
-            margin-right: 8px;
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+
+        .setting-group label:has(input[type="checkbox"]) {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 8px 0;
         }
 
         /* Tab Navigation */
@@ -1203,8 +1237,13 @@
     <div class="modal-overlay" id="settingsModal">
         <div class="modal">
             <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="modal-close" id="closeSettings">×</button>
+                <h2>
+                    <i data-feather="settings" style="width: 20px; height: 20px; margin-right: 8px;"></i>
+                    Settings
+                </h2>
+                <button class="modal-close" id="closeSettings" title="Close Settings">
+                    <i data-feather="x"></i>
+                </button>
             </div>
             <div class="modal-content">
                 <div class="setting-group">

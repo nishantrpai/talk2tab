@@ -445,43 +445,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // Save back to storage
           chrome.storage.local.set({ journalMessages: journalMessages }, () => {
             console.log('Added entry to journal via keyboard shortcut:', journalEntry.content.substring(0, 50) + '...');
-            
-            // Notify sidebar about the new journal entry
-            chrome.runtime.sendMessage({
-              type: 'JOURNAL_ENTRY_ADDED',
-              entry: journalEntry
-            }).catch(() => {
-              // Sidebar might not be open, which is fine
-              console.log('Sidebar not available to notify about journal entry');
-            });
-            
             sendResponse({ success: true });
           });
         });
         return true; // Keep message channel open for async response
       }
       break;
-  }
-});
-
-// Handle keyboard commands
-chrome.commands.onCommand.addListener((command) => {
-  console.log('Command received:', command);
-  
-  if (command === 'add-to-journal') {
-    // Get the current active tab
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0] && tabs[0].url && (tabs[0].url.startsWith('http://') || tabs[0].url.startsWith('https://'))) {
-        // Send message to content script to handle the selection
-        chrome.tabs.sendMessage(tabs[0].id, { 
-          type: 'TRIGGER_ADD_TO_JOURNAL' 
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.log('Could not send message to content script:', chrome.runtime.lastError.message);
-          }
-        });
-      }
-    });
   }
 });
 

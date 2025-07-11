@@ -75,8 +75,8 @@ const extractPageContent = () => {
     const targetElement = mainElement || document.body;
     
     if (targetElement) {
-      // Get the full innerHTML to preserve structure and links
-      content = targetElement.innerHTML || '';
+      // Get the full innerText to preserve structure and links
+      content = targetElement.innerText || '';
       
       // Also include text content as fallback
       if (!content) {
